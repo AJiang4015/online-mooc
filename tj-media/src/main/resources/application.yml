@@ -36,16 +36,16 @@ tj:
       endpoint: "*******"
       bucket: "*******"
   tencent:
-    appId: 1312394356
-    secretId: AKIDDG3arrZ0B42sXzEOM8h182jDVbVDiAPS
-    secretKey: uc7RaXIqDPOAk9MAnAG5duvf8LHvIODl
+    appId: 1367473421
+    secretId: ${TENCENT_SECRET_ID}
+    secretKey: ${TENCENT_SECRET_KEY}
     vod:
       enable: true
       vodValidSeconds: 7776000
       region: "ap-shanghai"
       procedure: "wisehub-base"
-      urlKey: "HZFlxjPYoOm5AfShupOx"
-      pfcg: "basicDrmPreset"
+      urlKey: "eB27gBnARtRfxNLVv7L4"
+      #pfcg: "basicDrmPreset"
     cos:
       enable: true
       region: "ap-nanjing"
