@@ -49,6 +49,6 @@ tj:
     cos:
       enable: true
       region: "ap-nanjing"
-      bucket: tianji
+      bucket: tianji-1367473421
       multipartUploadThreshold: 5242880 # 5mb，触发分片上传的阈值
       minimumUploadPartSize: 1048576 # 1mb，分片的最小大小

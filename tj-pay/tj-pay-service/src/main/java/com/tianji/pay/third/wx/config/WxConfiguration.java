@@ -9,7 +9,7 @@ import com.wechat.pay.contrib.apache.httpclient.cert.CertificatesManager;
 import com.wechat.pay.contrib.apache.httpclient.exception.HttpCodeException;
 import com.wechat.pay.contrib.apache.httpclient.exception.NotFoundException;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,7 +20,10 @@ import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 
 @Configuration
-@EnableConfigurationProperties(WxPayProperties.class)
+@ConditionalOnExpression(
+        "T(org.springframework.util.StringUtils).hasText('${tj.pay.wx.privateKey:}') && " +
+        "T(org.springframework.util.StringUtils).hasText('${tj.pay.wx.mchId:}') && " +
+        "T(org.springframework.util.StringUtils).hasText('${tj.pay.wx.apiV3Key:}')")
 public class WxConfiguration {
 
     /**

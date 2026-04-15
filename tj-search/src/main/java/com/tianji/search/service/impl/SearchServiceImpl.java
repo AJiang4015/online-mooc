@@ -1,26 +1,18 @@
 package com.tianji.search.service.impl;
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch._types.FieldValue;
-import co.elastic.clients.elasticsearch._types.ShardFailure;
-import co.elastic.clients.elasticsearch._types.SortOrder;
-import co.elastic.clients.elasticsearch._types.query_dsl.*;
-import co.elastic.clients.elasticsearch.core.SearchRequest;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
-import co.elastic.clients.elasticsearch.core.search.Hit;
-import co.elastic.clients.elasticsearch.core.search.Highlight;
-import co.elastic.clients.elasticsearch.core.search.HighlightField;
-import co.elastic.clients.elasticsearch.core.search.SourceConfig;
-import co.elastic.clients.json.JsonData;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tianji.api.cache.CategoryCache;
 import com.tianji.api.client.user.UserClient;
 import com.tianji.api.dto.user.UserDTO;
 import com.tianji.common.constants.ErrorInfo;
 import com.tianji.common.domain.dto.PageDTO;
 import com.tianji.common.exceptions.CommonException;
-import com.tianji.common.utils.AssertUtils;
 import com.tianji.common.utils.BeanUtils;
 import com.tianji.common.utils.CollUtils;
+import com.tianji.common.utils.DateUtils;
 import com.tianji.common.utils.StringUtils;
 import com.tianji.common.utils.UserContext;
 import com.tianji.search.config.InterestsProperties;
@@ -33,11 +25,20 @@ import com.tianji.search.service.IInterestsService;
 import com.tianji.search.service.ISearchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.tianji.search.repository.CourseRepository.PUBLISH_TIME;
@@ -47,7 +48,11 @@ import static com.tianji.search.repository.CourseRepository.PUBLISH_TIME;
 @RequiredArgsConstructor
 public class SearchServiceImpl implements ISearchService {
 
-    private final ElasticsearchClient esClient;
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern(DateUtils.DEFAULT_DATE_TIME_FORMAT);
+
+    private final RestClient restClient;
+    private final ObjectMapper objectMapper;
     private final IInterestsService interestsService;
     private final UserClient userClient;
     private final CategoryCache categoryCache;
@@ -56,7 +61,7 @@ public class SearchServiceImpl implements ISearchService {
     @Override
     public List<CourseVO> queryCourseByCateId(Long cateLv2Id) {
         return queryTopNByCategoryIdLv2sAndFree(
-                CollUtils.singletonList(cateLv2Id), null, PUBLISH_TIME+".keyword", false, 10);
+                CollUtils.singletonList(cateLv2Id), null, PUBLISH_TIME, false, 10);
     }
 
     @Override
@@ -66,7 +71,7 @@ public class SearchServiceImpl implements ISearchService {
 
     @Override
     public List<CourseVO> queryNewTopN() {
-        return queryTopNCourseOnMarketByFree(false, PUBLISH_TIME+".keyword");
+        return queryTopNCourseOnMarketByFree(false, PUBLISH_TIME);
     }
 
     @Override
@@ -76,116 +81,33 @@ public class SearchServiceImpl implements ISearchService {
 
     private List<CourseVO> queryTopNCourseOnMarketByFree(boolean isFree, String sortBy) {
         Long userId = UserContext.getUser();
-        List<CourseVO> courses;
-
         if (userId == null) {
-            // 未登录用户查询
-            courses = queryTopNByCategoryIdLv2sAndFree(
+            return queryTopNByCategoryIdLv2sAndFree(
                     null, isFree, sortBy, false, interestsProperties.getTopNumber());
-        } else {
-            // 已登录用户查询
-            List<Long> categoryIds = interestsService.queryMyInterestsIds();
-            if (CollUtils.isEmpty(categoryIds)) {
-                courses = queryTopNByCategoryIdLv2sAndFree(
-                        null, isFree, sortBy, false, interestsProperties.getTopNumber());
-            } else {
-                courses = queryTopNByCategoryIdLv2sAndFree(
-                        categoryIds, isFree, sortBy, false, interestsProperties.getTopNumber());
-            }
         }
-        return courses;
+        List<Long> categoryIds = interestsService.queryMyInterestsIds();
+        if (CollUtils.isEmpty(categoryIds)) {
+            return queryTopNByCategoryIdLv2sAndFree(
+                    null, isFree, sortBy, false, interestsProperties.getTopNumber());
+        }
+        return queryTopNByCategoryIdLv2sAndFree(
+                categoryIds, isFree, sortBy, false, interestsProperties.getTopNumber());
     }
 
     private List<CourseVO> queryTopNByCategoryIdLv2sAndFree(
             List<Long> categoryIds, Boolean isFree, String sortBy, boolean isASC, int n) {
         try {
-            // 构建查询条件
-            BoolQuery.Builder boolQuery = new BoolQuery.Builder();
-
-            // 过滤条件：是否免费
-            if (isFree != null) {
-                boolQuery.filter(f -> f.term(t -> t
-                        .field(CourseRepository.FREE)
-                        .value(isFree)));
-            }
-
-            // 过滤条件：分类ID
-            if (CollUtils.isNotEmpty(categoryIds)) {
-                boolQuery.filter(f -> f.terms(t -> t
-                        .field(CourseRepository.CATEGORY_ID_LV2)
-                        .terms(ts -> ts.value(categoryIds.stream()
-                                .map(id -> FieldValue.of(id))
-                                .collect(Collectors.toList())))));
-            }
-
-            // 构建搜索请求
-            SearchRequest.Builder requestBuilder = new SearchRequest.Builder()
-                    .index(CourseRepository.INDEX_NAME)
-                    .query(boolQuery.build()._toQuery())
-                    .size(Math.min(n, 1000)); // 限制最大返回数量，避免过大查询
-
-            // 添加排序条件（如果sortBy不为空且是有效的排序字段）
-            if (StringUtils.isNotBlank(sortBy)) {
-                // 验证排序字段是否存在于映射中（可选，但推荐）
-                // 这里可以添加对sortBy字段的验证逻辑
-                requestBuilder.sort(s -> s.field(f -> f
-                        .field(sortBy)
-                        .order(isASC ? SortOrder.Asc : SortOrder.Desc)
-                ));
-            } else {
-                // 如果没有指定排序，添加默认排序（比如按_id排序）以避免潜在问题
-                requestBuilder.sort(s -> s.score(sb -> sb.order(SortOrder.Desc)));
-            }
-
-            // 执行查询
-            SearchResponse<Course> response = esClient.search(requestBuilder.build(), Course.class);
-
-            // 检查查询是否成功
-            if (response.shards() != null && response.shards().failures() != null) {
-                for (ShardFailure failure : response.shards().failures()) {
-                    log.error("Shard failure: {}", failure.reason());
-                }
-            }
-
-            // 解析结果
-            List<Hit<Course>> hits = response.hits().hits();
-            if (CollUtils.isEmpty(hits)) {
-                return CollUtils.emptyList();
-            }
-
-            List<CourseVO> courses = new ArrayList<>(hits.size());
-            Set<Long> teacherIds = new HashSet<>(hits.size());
-
-            for (Hit<Course> hit : hits) {
-                Course course = hit.source();
-                if (course == null) {
-                    continue;
-                }
-
-                CourseVO vo = BeanUtils.toBean(course, CourseVO.class);
-                teacherIds.add(course.getTeacher());
-                courses.add(vo);
-            }
-
-            // 补充教师信息
-            teacherIds.remove(0L);
-            if (CollUtils.isNotEmpty(teacherIds)) {
-                List<UserDTO> teachers = userClient.queryUserByIds(teacherIds);
-                AssertUtils.isNotEmpty(teachers, SearchErrorInfo.TEACHER_NOT_EXISTS);
-
-                Map<Long, String> teacherMap = teachers.stream()
-                        .collect(Collectors.toMap(UserDTO::getId, UserDTO::getName));
-
-                courses.forEach(vo -> vo.setTeacher(teacherMap.getOrDefault(
-                        Long.valueOf(vo.getTeacher()), "匿名")));
-            }
-
-            return courses;
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("size", Math.min(n, 1000));
+            body.set("query", buildTopNQuery(categoryIds, isFree));
+            addSort(body, normalizeSortField(sortBy), isASC);
+            SearchResultData result = executeSearch(body, Math.min(n, 1000));
+            return attachTeacherInfo(result.getCourses());
         } catch (IOException e) {
-            log.error("Elasticsearch query failed: {}", e.getMessage(), e);
+            log.error("Elasticsearch query failed", e);
             throw new CommonException(SearchErrorInfo.QUERY_COURSE_ERROR, e);
         } catch (Exception e) {
-            log.error("Unexpected error during Elasticsearch query: {}", e.getMessage(), e);
+            log.error("Unexpected error during Elasticsearch query", e);
             throw new CommonException(SearchErrorInfo.QUERY_COURSE_ERROR, e);
         }
     }
@@ -193,39 +115,19 @@ public class SearchServiceImpl implements ISearchService {
     @Override
     public PageDTO<CourseVO> queryCoursesForPortal(CoursePageQuery query) {
         try {
-            // 1.执行搜索
-            SearchResponse<Course> response = searchForResponse(query, CourseVO.EXCLUDE_FIELDS);
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("from", query.from());
+            body.put("size", query.getPageSize());
+            body.set("query", buildPortalQuery(query));
+            addSort(body, normalizeSortField(query.getSortBy()), Boolean.TRUE.equals(query.getIsAsc()));
+            addHighlight(body);
+            addExcludeFields(body, CourseVO.EXCLUDE_FIELDS);
 
-            // 2.处理响应结果
-            PageDTO<Course> result = handleSearchResponse(response, query.getPageSize());
-
-            // 3.转换为VO
-            List<Course> courses = result.getList();
-            if (CollUtils.isEmpty(courses)) {
-                return PageDTO.empty(result.getTotal(), result.getPages());
-            }
-
-            // 补充教师信息
-            List<Long> teacherIds = courses.stream()
-                    .map(Course::getTeacher)
-                    .collect(Collectors.toList());
-
-            List<UserDTO> teachers = userClient.queryUserByIds(teacherIds);
-            AssertUtils.isNotEmpty(teachers, SearchErrorInfo.TEACHER_NOT_EXISTS);
-
-            Map<Long, String> teacherMap = teachers.stream()
-                    .collect(Collectors.toMap(UserDTO::getId, UserDTO::getName));
-
-            List<CourseVO> vos = courses.stream()
-                    .map(course -> {
-                        CourseVO vo = BeanUtils.toBean(course, CourseVO.class);
-                        vo.setTeacher(teacherMap.getOrDefault(course.getTeacher(), "未知"));
-                        return vo;
-                    })
-                    .collect(Collectors.toList());
-
+            SearchResultData result = executeSearch(body, query.getPageSize());
+            List<CourseVO> vos = attachTeacherInfo(result.getCourses());
             return new PageDTO<>(result.getTotal(), result.getPages(), vos);
         } catch (Exception e) {
+            log.error("Query portal courses failed", e);
             throw new CommonException(ErrorInfo.Msg.SERVER_INTER_ERROR, e);
         }
     }
@@ -233,175 +135,234 @@ public class SearchServiceImpl implements ISearchService {
     @Override
     public List<Long> queryCoursesIdByName(String keyword) {
         try {
-            // 构建查询
-            SearchRequest request = SearchRequest.of(s -> s
-                    .index(CourseRepository.INDEX_NAME)
-                    .query(q -> q
-                            .matchPhrase(mp -> mp
-                                    .field(CourseRepository.DEFAULT_QUERY_NAME)
-                                    .query(keyword)
-                            )
-                    )
-                    .source(sc -> sc
-                            .filter(f -> f.includes("id"))
-                    )
-            );
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("size", 1000);
+            body.set("query", wrapMustQuery(buildKeywordQuery(keyword)));
+            ObjectNode source = body.putObject("_source");
+            ArrayNode includes = source.putArray("includes");
+            includes.add("id");
 
-            // 执行查询
-            SearchResponse<Course> response = esClient.search(request, Course.class);
-
-            // 解析结果
-            return response.hits().hits().stream()
-                    .map(hit -> hit.source().getId())
-                    .collect(Collectors.toList());
+            SearchResultData result = executeSearch(body, 1000);
+            return result.getCourses().stream().map(Course::getId).toList();
         } catch (IOException e) {
             throw new CommonException(SearchErrorInfo.QUERY_COURSE_ERROR, e);
         }
     }
 
-    private SearchResponse<Course> searchForResponse(CoursePageQuery query, String[] excludeFields) throws IOException {
-        // 构建基础查询
-        BoolQuery.Builder boolQuery = buildBasicQuery(query);
-
-
-        // 构建搜索请求（使用 8.x 版本的 Builder 模式）
-        SearchRequest.Builder requestBuilder = new SearchRequest.Builder()
-                .index(CourseRepository.INDEX_NAME)
-                .query(boolQuery.build()._toQuery())
-                .from(query.from())
-                .size(query.getPageSize());
-
-        // 排序（8.x 版本需通过 sort 方法的函数式接口配置）
-        if (StringUtils.isNotBlank(query.getSortBy())) {
-            if("publishTime".equals(query.getSortBy())){
-                query.setSortBy("publishTime.keyword");
+    private List<CourseVO> attachTeacherInfo(List<Course> courses) {
+        if (CollUtils.isEmpty(courses)) {
+            return CollUtils.emptyList();
+        }
+        Set<Long> teacherIds = new HashSet<>();
+        for (Course course : courses) {
+            if (course.getTeacher() != null && course.getTeacher() > 0) {
+                teacherIds.add(course.getTeacher());
             }
-            requestBuilder.sort(sort -> sort
-                    .field(field -> field
-                            .field(query.getSortBy())
-                            .order(query.getIsAsc() ? SortOrder.Asc : SortOrder.Desc)
-                    )
-            );
         }
+        Map<Long, UserDTO> teacherMap = CollUtils.isEmpty(teacherIds)
+                ? Map.of()
+                : userClient.queryUserByIds(teacherIds).stream()
+                .collect(Collectors.toMap(UserDTO::getId, user -> user, (a, b) -> a));
 
-        // 高亮设置（8.x 版本通过 fields 方法配置字段高亮）
-        requestBuilder.highlight(highlight -> highlight
-                .fields(CourseRepository.DEFAULT_QUERY_NAME, field -> field
-                        .preTags("<em>")
-                        .postTags("</em>")
-                )
-        );
-
-        // 过滤返回字段（8.x 版本 source 配置语法）
-        if (excludeFields != null && excludeFields.length > 0) {
-            requestBuilder.source(source -> source
-                    .filter(f -> f.excludes(Arrays.asList(excludeFields)))
-            );
-        }
-
-        // 执行查询时构建请求
-        SearchRequest request = requestBuilder.build();
-
-        // 使用 ElasticsearchClient 执行查询并返回结果
-        return esClient.search(request, Course.class);
+        return courses.stream().map(course -> {
+            CourseVO vo = BeanUtils.toBean(course, CourseVO.class);
+            UserDTO teacher = teacherMap.get(course.getTeacher());
+            if (teacher != null) {
+                vo.setTeacher(teacher.getName());
+                vo.setIcon(teacher.getIcon());
+            } else {
+                vo.setTeacher("未知");
+            }
+            return vo;
+        }).toList();
     }
 
-    private BoolQuery.Builder buildBasicQuery(CoursePageQuery query) {
-        BoolQuery.Builder boolQuery = new BoolQuery.Builder();
-
-        // 关键字搜索
-        String keyword = query.getKeyword();
-        if (StringUtils.isBlank(keyword)) {
-            boolQuery.must(must -> must.matchAll(m -> m));
-        } else {
-            boolQuery.must(must -> must.matchPhrase(mp -> mp
-                    .field(CourseRepository.DEFAULT_QUERY_NAME)
-                    .query(keyword)
-            ));
-        }
-
-        // 分类过滤
-        if (query.getCategoryIdLv1() != null) {
-            boolQuery.filter(filter -> filter.term(t -> t
-                    .field(CourseRepository.CATEGORY_ID_LV1)
-                    .value(query.getCategoryIdLv1())
-            ));
-        }
-        if (query.getCategoryIdLv2() != null) {
-            boolQuery.filter(filter -> filter.term(t -> t
-                    .field(CourseRepository.CATEGORY_ID_LV2)
-                    .value(query.getCategoryIdLv2())
-            ));
-        }
-        if (query.getCategoryIdLv3() != null) {
-            boolQuery.filter(filter -> filter.term(t -> t
-                    .field(CourseRepository.CATEGORY_ID_LV3)
-                    .value(query.getCategoryIdLv3())
-            ));
-        }
-
-        // 其他过滤条件
-        if (query.getFree() != null) {
-            boolQuery.filter(filter -> filter.term(t -> t
-                    .field(CourseRepository.FREE)
-                    .value(query.getFree())
-            ));
-        }
-        if (query.getType() != null) {
-            boolQuery.filter(filter -> filter.term(t -> t
-                    .field(CourseRepository.TYPE)
-                    .value(query.getType())
-            ));
-        }
-
-        // 时间范围过滤
-        LocalDateTime beginTime = query.getBeginTime();
-        LocalDateTime endTime = query.getEndTime();
-        if (beginTime != null || endTime != null) {
-            boolQuery.filter(filter -> filter.range(r -> {
-                RangeQuery.Builder range = new RangeQuery.Builder().field(CourseRepository.UPDATE_TIME);
-                if (beginTime != null) {
-                    range.gte(JsonData.of(beginTime));
-                }
-                if (endTime != null) {
-                    range.lte(JsonData.of(endTime));
-                }
-                return range;
-            }));
-        }
-
-        return boolQuery;
+    private SearchResultData executeSearch(ObjectNode body, int pageSize) throws IOException {
+        Request request = new Request("POST", "/" + CourseRepository.INDEX_NAME + "/_search");
+        request.setJsonEntity(objectMapper.writeValueAsString(body));
+        Response response = restClient.performRequest(request);
+        String json = EntityUtils.toString(response.getEntity());
+        JsonNode root = objectMapper.readTree(json);
+        return parseSearchResult(root, pageSize);
     }
-    private PageDTO<Course> handleSearchResponse(SearchResponse<Course> response, int pageSize) {
-        // 总条数
-        long total = response.hits().total().value();
-        // 总页数
-        long totalPages = (total + pageSize - 1) / pageSize;
 
-        // 处理命中数据
-        List<Hit<Course>> hits = response.hits().hits();
-        if (CollUtils.isEmpty(hits)) {
-            return new PageDTO<>(total, totalPages, CollUtils.emptyList());
-        }
+    private SearchResultData parseSearchResult(JsonNode root, int pageSize) {
+        JsonNode hitsNode = root.path("hits");
+        long total = parseTotal(hitsNode.path("total"));
+        long pages = pageSize <= 0 ? 0 : (total + pageSize - 1) / pageSize;
 
-        List<Course> courses = new ArrayList<>(hits.size());
-        for (Hit<Course> hit : hits) {
-            Course course = hit.source();
-            if (course == null) {
+        List<Course> courses = new ArrayList<>();
+        for (JsonNode hit : hitsNode.path("hits")) {
+            JsonNode source = hit.path("_source");
+            if (source.isMissingNode() || source.isNull()) {
                 continue;
             }
-
-            // 处理高亮
-            if (hit.highlight() != null && hit.highlight().containsKey(CourseRepository.DEFAULT_QUERY_NAME)) {
-                List<String> highlights = hit.highlight().get(CourseRepository.DEFAULT_QUERY_NAME);
-                if (CollUtils.isNotEmpty(highlights)) {
-                    course.setName(highlights.get(0));
+            try {
+                Course course = objectMapper.treeToValue(source, Course.class);
+                JsonNode highlight = hit.path("highlight").path(CourseRepository.DEFAULT_QUERY_NAME);
+                if (highlight.isArray() && highlight.size() > 0) {
+                    course.setName(highlight.get(0).asText(course.getName()));
                 }
+                courses.add(course);
+            } catch (Exception e) {
+                log.warn("Parse course document failed: {}", source, e);
             }
+        }
+        return new SearchResultData(total, pages, courses);
+    }
 
-            courses.add(course);
+    private long parseTotal(JsonNode totalNode) {
+        if (totalNode == null || totalNode.isMissingNode() || totalNode.isNull()) {
+            return 0L;
+        }
+        if (totalNode.isNumber()) {
+            return totalNode.asLong();
+        }
+        return totalNode.path("value").asLong(0L);
+    }
+
+    private ObjectNode buildPortalQuery(CoursePageQuery query) {
+        ObjectNode bool = objectMapper.createObjectNode();
+        ArrayNode must = bool.putArray("must");
+        must.add(buildKeywordQuery(query.getKeyword()));
+
+        ArrayNode filter = bool.putArray("filter");
+        addTermFilter(filter, CourseRepository.CATEGORY_ID_LV1, query.getCategoryIdLv1());
+        addTermFilter(filter, CourseRepository.CATEGORY_ID_LV2, query.getCategoryIdLv2());
+        addTermFilter(filter, CourseRepository.CATEGORY_ID_LV3, query.getCategoryIdLv3());
+        addTermFilter(filter, CourseRepository.FREE, query.getFree());
+        addTermFilter(filter, CourseRepository.TYPE, query.getType());
+        addDateRangeFilter(filter, query.getBeginTime(), query.getEndTime());
+
+        return objectMapper.createObjectNode().set("bool", bool);
+    }
+
+    private ObjectNode buildTopNQuery(List<Long> categoryIds, Boolean isFree) {
+        ObjectNode bool = objectMapper.createObjectNode();
+        ArrayNode must = bool.putArray("must");
+        must.add(objectMapper.createObjectNode().set("match_all", objectMapper.createObjectNode()));
+
+        ArrayNode filter = bool.putArray("filter");
+        if (isFree != null) {
+            addTermFilter(filter, CourseRepository.FREE, isFree);
+        }
+        if (CollUtils.isNotEmpty(categoryIds)) {
+            ObjectNode terms = objectMapper.createObjectNode();
+            ArrayNode values = objectMapper.createArrayNode();
+            categoryIds.forEach(values::add);
+            terms.set(CourseRepository.CATEGORY_ID_LV2, values);
+            filter.add(objectMapper.createObjectNode().set("terms", terms));
+        }
+        return objectMapper.createObjectNode().set("bool", bool);
+    }
+
+    private ObjectNode buildKeywordQuery(String keyword) {
+        if (StringUtils.isBlank(keyword)) {
+            return objectMapper.createObjectNode().set("match_all", objectMapper.createObjectNode());
+        }
+        ObjectNode query = objectMapper.createObjectNode();
+        query.put("query", keyword);
+        return objectMapper.createObjectNode()
+                .set("match_phrase", objectMapper.createObjectNode()
+                        .set(CourseRepository.DEFAULT_QUERY_NAME, query));
+    }
+
+    private ObjectNode wrapMustQuery(ObjectNode queryNode) {
+        ObjectNode bool = objectMapper.createObjectNode();
+        bool.putArray("must").add(queryNode);
+        return objectMapper.createObjectNode().set("bool", bool);
+    }
+
+    private void addTermFilter(ArrayNode filter, String field, Object value) {
+        if (value == null) {
+            return;
+        }
+        ObjectNode valueNode = objectMapper.createObjectNode();
+        if (value instanceof Number number) {
+            valueNode.put(field, number.longValue());
+        } else if (value instanceof Boolean bool) {
+            valueNode.put(field, bool);
+        } else {
+            valueNode.put(field, String.valueOf(value));
+        }
+        filter.add(objectMapper.createObjectNode().set("term", valueNode));
+    }
+
+    private void addDateRangeFilter(ArrayNode filter, LocalDateTime beginTime, LocalDateTime endTime) {
+        if (beginTime == null && endTime == null) {
+            return;
+        }
+        ObjectNode rangeField = objectMapper.createObjectNode();
+        if (beginTime != null) {
+            rangeField.put("gte", beginTime.format(DATE_TIME_FORMATTER));
+        }
+        if (endTime != null) {
+            rangeField.put("lte", endTime.format(DATE_TIME_FORMATTER));
+        }
+        filter.add(objectMapper.createObjectNode().set("range",
+                objectMapper.createObjectNode().set(CourseRepository.UPDATE_TIME, rangeField)));
+    }
+
+    private void addSort(ObjectNode body, String sortBy, boolean isAsc) {
+        ArrayNode sortArray = body.putArray("sort");
+        if (StringUtils.isBlank(sortBy)) {
+            sortArray.add(objectMapper.createObjectNode().set("_score",
+                    objectMapper.createObjectNode().put("order", "desc")));
+            return;
+        }
+        sortArray.add(objectMapper.createObjectNode().set(sortBy,
+                objectMapper.createObjectNode().put("order", isAsc ? "asc" : "desc")));
+    }
+
+    private void addHighlight(ObjectNode body) {
+        ObjectNode highlight = body.putObject("highlight");
+        highlight.putArray("pre_tags").add("<em>");
+        highlight.putArray("post_tags").add("</em>");
+        highlight.putObject("fields").putObject(CourseRepository.DEFAULT_QUERY_NAME);
+    }
+
+    private void addExcludeFields(ObjectNode body, String[] excludeFields) {
+        if (excludeFields == null || excludeFields.length == 0) {
+            return;
+        }
+        ObjectNode source = body.putObject("_source");
+        ArrayNode excludes = source.putArray("excludes");
+        for (String excludeField : excludeFields) {
+            excludes.add(excludeField);
+        }
+    }
+
+    private String normalizeSortField(String sortBy) {
+        if (StringUtils.isBlank(sortBy)) {
+            return sortBy;
+        }
+        if (PUBLISH_TIME.concat(".keyword").equals(sortBy)) {
+            return PUBLISH_TIME;
+        }
+        return sortBy;
+    }
+
+    private static class SearchResultData {
+        private final long total;
+        private final long pages;
+        private final List<Course> courses;
+
+        private SearchResultData(long total, long pages, List<Course> courses) {
+            this.total = total;
+            this.pages = pages;
+            this.courses = courses;
         }
 
-        return new PageDTO<>(total, totalPages, courses);
+        public long getTotal() {
+            return total;
+        }
+
+        public long getPages() {
+            return pages;
+        }
+
+        public List<Course> getCourses() {
+            return courses;
+        }
     }
 }

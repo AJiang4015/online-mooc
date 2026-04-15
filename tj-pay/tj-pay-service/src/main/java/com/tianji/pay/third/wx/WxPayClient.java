@@ -18,6 +18,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
@@ -28,6 +29,10 @@ import java.util.Arrays;
 
 @Slf4j
 @Component
+@ConditionalOnExpression(
+        "T(org.springframework.util.StringUtils).hasText('${tj.pay.wx.privateKey:}') && " +
+        "T(org.springframework.util.StringUtils).hasText('${tj.pay.wx.mchId:}') && " +
+        "T(org.springframework.util.StringUtils).hasText('${tj.pay.wx.apiV3Key:}')")
 public class WxPayClient {
     private final CloseableHttpClient wxPayClient;
     private final ObjectMapper objectMapper;

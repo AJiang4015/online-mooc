@@ -35,6 +35,7 @@ import com.wechat.pay.contrib.apache.httpclient.notification.NotificationRequest
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -45,7 +46,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class NotifyServiceImpl implements INotifyService {
-    private final CertificatesManager certificatesManager;
+    private final ObjectProvider<CertificatesManager> certificatesManagerProvider;
     private final WxPayProperties properties;
     private final IPayOrderService payOrderService;
     private final RabbitMqHelper rabbitMqHelper;
@@ -230,6 +231,11 @@ public class NotifyServiceImpl implements INotifyService {
     @Nullable
     private Notification checkWxNotifyRequest(NotificationRequest request) {
         try {
+            CertificatesManager certificatesManager = certificatesManagerProvider.getIfAvailable();
+            if (certificatesManager == null) {
+                log.warn("微信支付证书管理器未初始化，跳过微信回调处理");
+                return null;
+            }
             Verifier verifier = certificatesManager.getVerifier(properties.getMchId());
             String apiV3Key = properties.getApiV3Key();
             NotificationHandler handler = new NotificationHandler(verifier, apiV3Key.getBytes(StandardCharsets.UTF_8));

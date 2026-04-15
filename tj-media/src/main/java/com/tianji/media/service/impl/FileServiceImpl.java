@@ -1,7 +1,10 @@
 package com.tianji.media.service.impl;
 
 import cn.hutool.core.lang.UUID;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.tianji.common.domain.dto.PageDTO;
+import com.tianji.common.domain.query.PageQuery;
 import com.tianji.common.exceptions.CommonException;
 import com.tianji.common.exceptions.DbException;
 import com.tianji.common.utils.StringUtils;
@@ -20,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 
 /**
  * <p>
@@ -39,28 +43,21 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements IF
 
     @Override
     public FileDTO uploadFile(MultipartFile file) {
-        // 1.获取文件名称
         String originalFilename = file.getOriginalFilename();
-        // 2.生成新文件名
         String filename = generateNewFileName(originalFilename);
-        // 3.获取文件流
         InputStream inputStream;
         try {
             inputStream = file.getInputStream();
         } catch (IOException e) {
             throw new CommonException("文件读取异常", e);
         }
-        // 4.上传文件
-        String requestId = fileStorage.uploadFile(filename, inputStream, file.getSize());
-        // 5.写入数据库
-        File fileInfo = null;
+        fileStorage.uploadFile(filename, inputStream, file.getSize());
+        File fileInfo;
         try {
             fileInfo = new File();
             fileInfo.setFilename(originalFilename);
             fileInfo.setKey(filename);
             fileInfo.setStatus(FileStatus.UPLOADED);
-            // TODO 不再保存请求id
-            // fileInfo.setRequestId(requestId);
             fileInfo.setPlatform(properties.getFile());
             save(fileInfo);
         } catch (Exception e) {
@@ -68,11 +65,9 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements IF
             fileStorage.deleteFile(filename);
             throw new DbException(FileErrorInfo.Msg.FILE_UPLOAD_ERROR);
         }
-        // 6.返回
         FileDTO fileDTO = new FileDTO();
         fileDTO.setId(fileInfo.getId());
-        // fileDTO.setPath(fileInfo.getPlatform().getPath() + filename);
-        fileDTO.setPath(requestId);
+        fileDTO.setPath(buildFilePath(fileInfo));
         fileDTO.setFilename(originalFilename);
         return fileDTO;
     }
@@ -83,13 +78,24 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements IF
         if (file == null) {
             return null;
         }
-        return FileDTO.of(file.getId(), file.getFilename(), file.getPlatform().getPath() + file.getKey());
+        return FileDTO.of(file.getId(), file.getFilename(), buildFilePath(file));
+    }
+
+    @Override
+    public PageDTO<FileDTO> queryFiles(PageQuery query) {
+        Page<File> page = lambdaQuery().page(query.toMpPage("id", false));
+        List<FileDTO> list = page.getRecords().stream()
+                .map(file -> FileDTO.of(file.getId(), file.getFilename(), buildFilePath(file)))
+                .toList();
+        return PageDTO.of(page, list);
+    }
+
+    private String buildFilePath(File file) {
+        return file.getPlatform().getPath() + file.getKey();
     }
 
     private String generateNewFileName(String originalFilename) {
-        // 1.获取后缀
         String suffix = StringUtils.subAfter(originalFilename, ".", true);
-        // 2.生成新文件名
         return UUID.randomUUID().toString(true) + "." + suffix;
     }
 }

@@ -30,7 +30,7 @@ import java.util.List;
 @RestController
 @RequestMapping("users")
 @Tag(name = "用户管理接口")
-public abstract class UserController implements IUserService {
+public class UserController {
 
     @Autowired
     private IUserService userService;

@@ -1,6 +1,8 @@
 package com.tianji.media.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.tianji.common.domain.dto.PageDTO;
+import com.tianji.common.domain.query.PageQuery;
 import com.tianji.media.domain.dto.FileDTO;
 import com.tianji.media.domain.po.File;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,4 +20,6 @@ public interface IFileService extends IService<File> {
     FileDTO uploadFile(MultipartFile file);
 
     FileDTO getFileInfo(Long id);
+
+    PageDTO<FileDTO> queryFiles(PageQuery query);
 }
