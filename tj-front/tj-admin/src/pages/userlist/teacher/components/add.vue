@@ -235,7 +235,7 @@ const handleSubmit = async () => {
       roleId: 3
     };
     if (!props.fromData.id) {
-      await addTeacher(params)
+      await saveUser(params)
         .then((res) => {
           if (res.code === 200) {
             ElMessage({
@@ -263,7 +263,7 @@ const handleSubmit = async () => {
         .catch((err) => {});
     } else {
       // 编辑接口
-      await editTeacher(params)
+      await editUser(props.fromData.id, params)
         .then((res) => {
           if (res.code === 200) {
             ElMessage({

@@ -2,7 +2,7 @@
 spring:
   data:
     redis:
-      host: ${tj.redis.host:192.168.150.101}
+      host: ${tj.redis.host:192.168.127.101}
       password: ${tj.redis.password:123321}
       lettuce:
         pool:

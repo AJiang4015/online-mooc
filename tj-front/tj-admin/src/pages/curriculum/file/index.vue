@@ -28,7 +28,7 @@
         </div>
       </div>
       <!-- 上传中心 -->
-      <UploadCenter ref="uploadCenterRef" style="width: 100%;"/>
+      <UploadCenter ref="uploadCenterRef" style="width: 100%;" @uploaded="getList"/>
     </div>
   </template>
   

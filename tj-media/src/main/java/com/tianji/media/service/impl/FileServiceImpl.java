@@ -7,6 +7,7 @@ import com.tianji.common.domain.dto.PageDTO;
 import com.tianji.common.domain.query.PageQuery;
 import com.tianji.common.exceptions.CommonException;
 import com.tianji.common.exceptions.DbException;
+import com.tianji.common.utils.BeanUtils;
 import com.tianji.common.utils.StringUtils;
 import com.tianji.media.config.PlatformProperties;
 import com.tianji.media.domain.dto.FileDTO;
@@ -57,6 +58,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements IF
             fileInfo = new File();
             fileInfo.setFilename(originalFilename);
             fileInfo.setKey(filename);
+            fileInfo.setFileSize(file.getSize());
             fileInfo.setStatus(FileStatus.UPLOADED);
             fileInfo.setPlatform(properties.getFile());
             save(fileInfo);
@@ -78,20 +80,40 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements IF
         if (file == null) {
             return null;
         }
-        return FileDTO.of(file.getId(), file.getFilename(), buildFilePath(file));
+        return toFileDTO(file);
     }
 
     @Override
     public PageDTO<FileDTO> queryFiles(PageQuery query) {
         Page<File> page = lambdaQuery().page(query.toMpPage("id", false));
         List<FileDTO> list = page.getRecords().stream()
-                .map(file -> FileDTO.of(file.getId(), file.getFilename(), buildFilePath(file)))
+                .map(this::toFileDTO)
                 .toList();
         return PageDTO.of(page, list);
     }
 
     private String buildFilePath(File file) {
-        return file.getPlatform().getPath() + file.getKey();
+        if (file == null) {
+            return null;
+        }
+        if (file.getPlatform() != null && StringUtils.isNotBlank(file.getKey())) {
+            return file.getPlatform().getPath() + file.getKey();
+        }
+        if (StringUtils.isNotBlank(file.getRequestId())) {
+            return file.getRequestId();
+        }
+        if (StringUtils.isNotBlank(file.getKey())) {
+            return "/img-tx/" + file.getKey();
+        }
+        return null;
+    }
+
+    private FileDTO toFileDTO(File file) {
+        FileDTO dto = BeanUtils.copyBean(file, FileDTO.class);
+        dto.setPath(buildFilePath(file));
+        dto.setStatus(file.getStatus() == null ? null : file.getStatus().getValue());
+        dto.setPlatform(file.getPlatform() == null ? null : file.getPlatform().getValue());
+        return dto;
     }
 
     private String generateNewFileName(String originalFilename) {

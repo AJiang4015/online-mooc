@@ -31,7 +31,7 @@
   let searchData = reactive({
     pageSize: 10,
     pageNo: 1,
-    examType: null
+    type: null
   });
   let examData = reactive([]);
   

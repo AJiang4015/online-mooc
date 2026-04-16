@@ -321,7 +321,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 // 引入接口api
-import { getToday, getTop10, getGrantInfo,getTodo } from '@/api/main'
+import { getToday, getTop10, getGrantInfo } from '@/api/main'
 // 引入组件
 import coreChart from './components/coreChart.vue' // 引入核心指标组件
 import flowStatistics from './components/flowStatistics.vue' // 引入交易统计组件
@@ -374,10 +374,13 @@ const messageData = [
 const todaydata = reactive({
   data: {}
 })
-const tododata = reactive({
-  data: {}
-})
 // 当前时间
+const tododata = reactive({
+  data: {
+    todoRefundNum: 0,
+    todoCouponNum: 0
+  }
+})
 const nowtime = ref('')
 // table切换数据 - 静态数据
 const tableBar = [{ id: 1, name: '核心指标' }, { id: 2, name: '交易统计' }, { id: 3, name: '用户统计' }, { id: 4, name: '流量统计' }]
@@ -397,7 +400,6 @@ onMounted(() => {
   getTodayData()
   getNowTime()
   gettop10Data()
-  getTodoData()
   // TODO计划合并逻辑-由于时间关系 先搁置
   // getChartsData({type: actId.value,params:params1})
   // getChartsData({type: actId.value,params:params2})
@@ -423,14 +425,6 @@ const getTodayData = async () => {
   const res = await getToday()
   if (res.code === 200) {
     todaydata.data = res.data
-  } else {
-    ElMessage.error(res.msg)
-  }
-}
-const getTodoData = async () => {
-  const res = await getTodo()
-  if (res.code === 200) {
-    tododata.data = res.data
   } else {
     ElMessage.error(res.msg)
   }

@@ -117,7 +117,7 @@ instance.interceptors.response.use(
         throw new Error(response.data.msg);*/
   },
   async (err) => {
-    if(err.response.status === 401 && isLogin){
+    if(err.response?.status === 401 && isLogin){
       // 登录异常或超时，刷新token
       return refreshToken(err);
     }

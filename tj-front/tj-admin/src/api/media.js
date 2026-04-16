@@ -51,7 +51,7 @@ export const getFiles = (params) =>
   });
 
 // 上传文件
-export const uploadFile = (file) => {
+export const uploadFile = (file, config = {}) => {
   const formData = new FormData();
   formData.append('file', file);
   return request({
@@ -60,7 +60,8 @@ export const uploadFile = (file) => {
     data: formData,
     headers: {
       'Content-Type': 'multipart/form-data'
-    }
+    },
+    ...config
   });
 };
 

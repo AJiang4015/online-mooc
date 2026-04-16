@@ -51,6 +51,10 @@ public class File implements Serializable {
      */
     private String requestId;
 
+    private Long fileSize;
+
+    private Integer useTimes;
+
     /**
      * 状态：1-待上传 2-已上传,未使用 3-已使用
      */
