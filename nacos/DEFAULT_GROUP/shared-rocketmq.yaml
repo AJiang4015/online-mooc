@@ -1,6 +1,6 @@
 # RocketMQ 基础配置
 rocketmq:
-  name-server: 192.168.150.101:9876  # NameServer地址，集群模式可配置多个，用逗号分隔
+  name-server: 192.168.127.101:9876  # NameServer地址，集群模式可配置多个，用逗号分隔
   producer:
     group: my-producer-group    # 生产者组名，需全局唯一
     send-message-timeout: 3000  # 发送消息超时时间（毫秒）

@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
         Config config = new Config();
         // 添加redis地址，这里添加了单点的地址，也可以使用config.useClusterServers()添加集群地址 
         config.useSingleServer()
-            .setAddress("redis://192.168.150.101:6379")
+            .setAddress("redis://192.168.127.101:6379")
             .setPassword("123321");
         // 创建客户端
         return Redisson.create(config);
