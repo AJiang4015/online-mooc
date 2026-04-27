@@ -88,7 +88,7 @@ const getMenuList = (list, basePath) => {
         redirect: item.redirect,
       };
     })
-    .filter((item) => item.meta && item.meta.hidden !== true);
+    .filter((item) => item.meta && item.meta.hidden !== true && item.path !== "/message");
 };
 // 展示基础路由
 const basePath = getMenuList(routers)

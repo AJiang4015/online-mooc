@@ -40,7 +40,7 @@
           <router-link to="/my/index">
             <img
               class="headIcon"
-              :src="userInfo.icon"
+              :src="avatarSrc"
               :onerror="onerrorImg"
               alt=""
             />
@@ -56,12 +56,11 @@
   </header>
 </template>
 <script setup>
-import { onMounted, ref, nextTick, watchEffect } from "vue";
+import { computed, onMounted, ref, watchEffect } from "vue";
 import defaultImage from "@/assets/icon.jpeg";
 import { useUserStore } from "@/store";
 import router from "@/router";
 import { useRoute } from "vue-router";
-import { log } from "debug/src/browser"
 import {TOKEN_NAME} from "@/config/global"
 const store = useUserStore();
 const userInfo = ref({});
@@ -76,12 +75,17 @@ watchEffect(() => {
   userInfo.value = store.getUserInfo;
 });
 
+const avatarSrc = computed(() => {
+  const info = userInfo.value || {};
+  return info.photo || info.icon || defaultImage;
+});
+
 const goLogin = () => {
   router.push("/login");
 };
 // 默认头像
-const onerrorImg = () => {
-  userInfo.value.icon = defaultImage;
+const onerrorImg = (event) => {
+  event.target.src = defaultImage;
 };
 </script>
 <style lang="scss" scoped>
