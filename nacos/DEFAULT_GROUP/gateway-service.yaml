@@ -8,6 +8,7 @@ tj:
       - /course/checkCoursePurchase
       - /course/{id}
       - /courses/portal
+      - /ms/files/preview
       - /code
       - /students/register
       - /search

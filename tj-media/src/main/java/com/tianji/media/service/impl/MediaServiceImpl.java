@@ -13,6 +13,8 @@ import com.tianji.api.dto.user.UserDTO;
 import com.tianji.common.domain.dto.PageDTO;
 import com.tianji.common.exceptions.ForbiddenException;
 import com.tianji.common.utils.*;
+import com.tianji.media.config.PlatformProperties;
+import com.tianji.media.config.TencentProperties;
 import com.tianji.media.constants.FileErrorInfo;
 import com.tianji.media.domain.dto.MediaDTO;
 import com.tianji.media.domain.dto.MediaUploadResultDTO;
@@ -21,6 +23,7 @@ import com.tianji.media.domain.query.MediaQuery;
 import com.tianji.media.domain.vo.MediaVO;
 import com.tianji.media.domain.vo.VideoPlayVO;
 import com.tianji.media.enums.FileStatus;
+import com.tianji.media.enums.Platform;
 import com.tianji.media.mapper.MediaMapper;
 import com.tianji.media.service.IMediaService;
 import com.tianji.media.storage.IMediaStorage;
@@ -53,6 +56,10 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
 
     private final UserClient userClient;
 
+    private final PlatformProperties platformProperties;
+
+    private final TencentProperties tencentProperties;
+
     @Override
     public String getUploadSignature() {
         return mediaStorage.getUploadSignature();
@@ -73,10 +80,7 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
             // 1）获取签名
             String signature =  mediaStorage.getPlaySignature(media.getFileId(), UserContext.getUser(), null);
             // 2）返回
-            VideoPlayVO vo = new VideoPlayVO();
-            vo.setSignature(signature);
-            vo.setFileId(media.getFileId());
-            return vo;
+            return buildVideoPlayVO(media.getFileId(), signature);
         }
         // 2.2.否，判断课程章节是否免费
         Boolean trailer = sectionInfo.getTrailer();
@@ -92,10 +96,7 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
         String signature =  mediaStorage.getPlaySignature(
                 media.getFileId(), UserContext.getUser(), sectionInfo.getFreeDuration());
         // 5.返回
-        VideoPlayVO vo = new VideoPlayVO();
-        vo.setSignature(signature);
-        vo.setFileId(media.getFileId());
-        return vo;
+        return buildVideoPlayVO(media.getFileId(), signature);
     }
 
 
@@ -106,10 +107,7 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
         // 2.获取签名
         String signature =  mediaStorage.getPlaySignature(media.getFileId(), UserContext.getUser(), null);
         // 3.返回
-        VideoPlayVO vo = new VideoPlayVO();
-        vo.setSignature(signature);
-        vo.setFileId(media.getFileId());
-        return vo;
+        return buildVideoPlayVO(media.getFileId(), signature);
     }
 
     @Override
@@ -204,5 +202,15 @@ public class MediaServiceImpl extends ServiceImpl<MediaMapper, Media> implements
         mediaStorage.deleteFile(fileId);
         // 2.删除本地信息
         remove(new LambdaQueryWrapper<Media>().eq(Media::getFileId, fileId));
+    }
+
+    private VideoPlayVO buildVideoPlayVO(String fileId, String signature) {
+        VideoPlayVO vo = new VideoPlayVO();
+        vo.setFileId(fileId);
+        vo.setSignature(signature);
+        if (platformProperties.getMedia() == Platform.TENCENT) {
+            vo.setAppId(tencentProperties.getAppId());
+        }
+        return vo;
     }
 }

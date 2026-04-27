@@ -11,5 +11,6 @@ public class MinioProperties {
     private String accessKey;
     private String secretKey;
     private String bucketName;
+    private String publicUrlPrefix;
     private Integer previewExpiry;//预览到期时间 单位：小时
 }

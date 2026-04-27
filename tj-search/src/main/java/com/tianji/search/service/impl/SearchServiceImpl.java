@@ -238,7 +238,7 @@ public class SearchServiceImpl implements ISearchService {
             request.source().query(queryBuilder);
         }
         // 1.3.TopN
-        request.source().size(n).sort(sortBy, isASC ? SortOrder.ASC : SortOrder.DESC);
+        request.source().size(n).sort(resolveSortField(sortBy), isASC ? SortOrder.ASC : SortOrder.DESC);
         // 2.发送请求
         SearchResponse response = null;
         try {
@@ -346,7 +346,7 @@ public class SearchServiceImpl implements ISearchService {
         // 2.2.排序
         String sortBy = query.getSortBy();
         if (StringUtils.isNotBlank(sortBy)) {
-            request.source().sort(sortBy, query.getIsAsc() ? SortOrder.ASC : SortOrder.DESC);
+            request.source().sort(resolveSortField(sortBy), query.getIsAsc() ? SortOrder.ASC : SortOrder.DESC);
         }
         // 2.3.分页
         request.source().from(query.from()).size(query.getPageSize());
@@ -600,6 +600,13 @@ public class SearchServiceImpl implements ISearchService {
     private String getHistoryKey() {
         Long userId = UserContext.getUser(); // 获取当前用户ID
         return SEARCH_HISTORY_KEY_PREFIX + userId;
+    }
+
+    private String resolveSortField(String sortBy) {
+        if (CourseRepository.PUBLISH_TIME.equals(sortBy)) {
+            return CourseRepository.PUBLISH_TIME + ".keyword";
+        }
+        return sortBy;
     }
 
 }

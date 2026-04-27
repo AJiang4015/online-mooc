@@ -32,6 +32,9 @@ public class Langchain4jConfig {
     @Value("${langchain4j.model-name}")
     private String modelName;
 
+    @Value("${langchain4j.embedding-model-name:${langchain4j.model-name}}")
+    private String embeddingModelName;
+
     @Value("${langchain4j.max-retries}")
     private int maxRetries;
 
@@ -76,7 +79,7 @@ public class Langchain4jConfig {
                 .baseUrl(baseUrl)
                 .apiKey(apiKey)
                 .timeout(Duration.ofSeconds(timeoutSeconds))
-                .modelName(modelName)
+                .modelName(embeddingModelName)
                 .build();
     }
 }

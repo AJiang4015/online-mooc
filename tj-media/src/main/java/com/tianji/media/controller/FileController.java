@@ -2,6 +2,7 @@ package com.tianji.media.controller;
 
 
 import com.tianji.common.domain.dto.PageDTO;
+import com.tianji.common.annotations.NoWrapper;
 import com.tianji.media.domain.dto.FileDTO;
 import com.tianji.media.domain.query.FileQuery;
 import com.tianji.media.domain.query.MediaQuery;
@@ -9,15 +10,23 @@ import com.tianji.media.domain.vo.FileDetailVO;
 import com.tianji.media.domain.vo.FileVO;
 import com.tianji.media.domain.vo.MediaVO;
 import com.tianji.media.service.IFileService;
+import com.tianji.media.storage.IFileStorage;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -35,6 +44,7 @@ import java.util.Map;
 public class FileController {
 
     private final IFileService fileService;
+    private final IFileStorage fileStorage;
 
     @ApiOperation("分页搜索已上传媒资信息")
     @GetMapping
@@ -55,6 +65,19 @@ public class FileController {
     public FileDetailVO getFileInfo(
             @ApiParam(value = "文件id", example = "1") @PathVariable("id") Long id){
         return fileService.getFileInfo(id);
+    }
+
+    @ApiOperation("预览文件")
+    @NoWrapper
+    @GetMapping("/preview")
+    public ResponseEntity<InputStreamResource> previewFile(
+            @ApiParam(value = "文件key", required = true) @RequestParam("key") String key) {
+        InputStream inputStream = fileStorage.downloadFile(key);
+        MediaType mediaType = MediaTypeFactory.getMediaType(key).orElse(MediaType.APPLICATION_OCTET_STREAM);
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
+                .body(new InputStreamResource(inputStream));
     }
 
     @ApiOperation("删除文件")

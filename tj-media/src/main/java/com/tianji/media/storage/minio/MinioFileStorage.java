@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
@@ -164,6 +166,9 @@ public class MinioFileStorage implements IFileStorage {
     // 添加获取文件URL的方法
     public String getFileUrl(String key) {
         // 直接拼接固定 URL，无需签名
+        if (StringUtils.isNotBlank(minioProperties.getPublicUrlPrefix())) {
+            return minioProperties.getPublicUrlPrefix() + URLEncoder.encode(key, StandardCharsets.UTF_8);
+        }
         return String.format("%s/%s/%s",
                 minioProperties.getEndpoint(),  // MinIO 服务器地址
                 minioProperties.getBucketName(),

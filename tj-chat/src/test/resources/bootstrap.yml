@@ -47,6 +47,7 @@ langchain4j:
   timeout-seconds: 15
 #  model-name: deepseek-r1:1.5b
   model-name: qwen3:0.6b
+  embedding-model-name: bge-m3:latest
   max-retries: 3
   chat-model-temperature: 0.4
   streaming-chat-model-temperature: 0.7

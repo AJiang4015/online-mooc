@@ -36,13 +36,16 @@ const videoRef = ref(null);
 const player = ref(null);
 const fileId = ref("");
 const signature = ref("");
+const appId = ref("1312394356");
 
 const getId = async (mediaId) => {
-  
   await getMediasSignatureData(mediaId)
+  if (!player.value) {
+    return;
+  }
     player.value.loadVideoByID(
       {
-        appID: '1312394356',
+        appID: appId.value,
         fileID:fileId.value,
         psign: signature.value,
       }
@@ -52,9 +55,9 @@ const getId = async (mediaId) => {
     
 };
 // ------定义方法------
-const initPlay = (fileID, psign) => {
+const initPlay = (playAppId, fileID, psign) => {
   player.value = new TCPlayer(videoRef.value.id, {
-    appID: "1312394356",
+    appID: playAppId,
     fileID,
     psign,
     posterImage: true,
@@ -81,10 +84,11 @@ const getMediasSignatureData = async (mediaId) => {
   await getMediasSignature({ mediaId })
     .then((res) => {
       if (res.code == 200) {
+        appId.value = res.data.appId || "1312394356";
+        fileId.value = res.data.fileId;
+        signature.value = res.data.signature;
         if (player.value == null) {
-          fileId.value = res.data.fileId;
-          signature.value = res.data.signature;
-          initPlay(res.data.fileId, res.data.signature);
+          initPlay(res.data.appId, res.data.fileId, res.data.signature);
         }
       } else {
         ElMessage({

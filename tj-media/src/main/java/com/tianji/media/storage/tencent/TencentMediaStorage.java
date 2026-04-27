@@ -89,22 +89,34 @@ public class TencentMediaStorage implements IMediaStorage {
     @Override
     public String getPlaySignature(String fieldId, Long userId, Integer freeExpired) {
         long currentTime = System.currentTimeMillis() / 1000;
+        long expireTime = currentTime + tencentProperties.getVod().getVodValidSeconds();
 
         HashMap<String, Object> urlAccessInfo = new HashMap<>(2);
-       /* if (userId != null) {
-            urlAccessInfo.put("uid", String.valueOf(userId));
-        }*/
         if (freeExpired != null) {
             urlAccessInfo.put("exper", freeExpired * 60);
         }
-        return JWT.create()
+        JWT jwt = JWT.create()
                 .setKey(tencentProperties.getVod().getUrlKey().getBytes(StandardCharsets.UTF_8))
                 .setPayload("appId", tencentProperties.getAppId())
                 .setPayload("fileId", fieldId)
+                .setPayload("contentInfo", buildContentInfo())
                 .setPayload("currentTimeStamp", currentTime)
-                .setPayload("pcfg", tencentProperties.getVod().getPfcg())
-                .setPayload("urlAccessInfo", urlAccessInfo)
-                .sign();
+                .setPayload("expireTimeStamp", expireTime);
+        String playerConfig = tencentProperties.getVod().getPfcg();
+        if (StringUtils.isNotBlank(playerConfig)) {
+            jwt.setPayload("pcfg", playerConfig);
+        }
+        if (!urlAccessInfo.isEmpty()) {
+            jwt.setPayload("urlAccessInfo", urlAccessInfo);
+        }
+        return jwt.sign();
+    }
+
+    private HashMap<String, Object> buildContentInfo() {
+        HashMap<String, Object> contentInfo = new HashMap<>(1);
+        contentInfo.put("audioVideoType", "RawAdaptive");
+        contentInfo.put("rawAdaptiveDefinition", 10);
+        return contentInfo;
     }
 
     @Override

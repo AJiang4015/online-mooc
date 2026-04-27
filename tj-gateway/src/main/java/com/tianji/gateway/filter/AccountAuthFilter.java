@@ -46,7 +46,7 @@ public class AccountAuthFilter implements GlobalFilter, Ordered {
         String antPath = method + ":" + path;
 
         // 2.判断是否是无需登录的路径
-        if(isExcludePath(antPath)){
+        if(isExcludePath(antPath, path)){
             // 直接放行
             return chain.filter(exchange);
         }
@@ -76,9 +76,9 @@ public class AccountAuthFilter implements GlobalFilter, Ordered {
                 .flatMap(ex -> recordVisitAsync(ex, chain, clientIp));
     }
 
-    private boolean isExcludePath(String antPath) {
+    private boolean isExcludePath(String antPath, String path) {
         for (String pathPattern : authProperties.getExcludePath()) {
-            if(antPathMatcher.match(pathPattern, antPath)){
+            if(antPathMatcher.match(pathPattern, antPath) || antPathMatcher.match(pathPattern, path)){
                 return true;
             }
         }

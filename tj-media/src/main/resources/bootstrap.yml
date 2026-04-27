@@ -43,6 +43,7 @@ tj:
       enable: true
       excludeLoginPaths:
         - /medias/signature/play
+        - /files/preview
   jdbc:
     database: tj_media
   platform:
@@ -70,3 +71,4 @@ minio:
   accessKey: admin
   secretKey: admin123456
   bucketName: tianji
+  publicUrlPrefix: http://api.tianji.com/ms/files/preview?key=

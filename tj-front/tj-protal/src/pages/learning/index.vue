@@ -111,6 +111,7 @@ const finished = ref(false);
 // 记录播放相关参数
 const fileId = ref('')
 const signature = ref('')
+const appId = ref('1312394356')
 let timer = -1;
 let playing = false;
 // 当前播放小节信息缓存 
@@ -218,9 +219,9 @@ onUnmounted(() => {
 const currentPlayTime = ref(0)
 // 初始化视频播放器并播放视频 视频ID、播放器签名
 const player = ref(null)
-const initPlay = (fileID, psign) => {
+const initPlay = (playAppId, fileID, psign) => {
   player.value = new TCPlayer(videoRef.value, {
-    appID: '1312394356',
+    appID: playAppId,
     fileID,
     psign,
     posterImage: true,
@@ -290,10 +291,11 @@ const addPlayLogHandle = () => {
 const getMediasSignatureData = async (sectionId) => {
   let res = await getMediasSignature({sectionId})
   if (res.code === 200) {
+    appId.value = res.data.appId || '1312394356'
     fileId.value = res.data.fileId
     signature.value = res.data.signature
     if (player.value == null) {
-      initPlay(res.data.fileId, res.data.signature)
+      initPlay(res.data.appId, res.data.fileId, res.data.signature)
     }
     return true;
   } else {
@@ -336,7 +338,7 @@ const playHadle = async (val) => {
       }
       player.value.loadVideoByID(
           {
-            appID: '1312394356',
+            appID: appId.value,
             fileID: fileId.value,
             psign: signature.value,
           }

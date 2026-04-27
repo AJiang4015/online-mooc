@@ -137,6 +137,10 @@ public class LogTrackingFilter implements GlobalFilter, Ordered {
                                     byte[] content = new byte[dataBuffer.readableByteCount()];
                                     dataBuffer.read(content);
                                     DataBufferUtils.release(dataBuffer);
+                                    MediaType responseContentType = originalResponse.getHeaders().getContentType();
+                                    if (!shouldParseResponseBody(responseContentType)) {
+                                        return bufferFactory.wrap(content);
+                                    }
                                     String s = new String(content, Charset.forName("UTF-8"));
                                     try {
                                         // 使用 readTree 方法解析 JSON
@@ -170,7 +174,7 @@ public class LogTrackingFilter implements GlobalFilter, Ordered {
                                         //如果返回内容太多导致json被截断，走正则匹配
                                         parseKeyInfo(s, vo);
                                     }
-                                    byte[] uppedContent = s.getBytes();
+                                    byte[] uppedContent = s.getBytes(StandardCharsets.UTF_8);
                                     return bufferFactory.wrap(uppedContent);
                                 }));
                             }
@@ -260,5 +264,19 @@ public class LogTrackingFilter implements GlobalFilter, Ordered {
     public int getOrder() {
         // 设置为较高优先级，但低于RequestIdRelayFilter
         return Ordered.HIGHEST_PRECEDENCE;
+    }
+
+    private boolean shouldParseResponseBody(MediaType contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        if (MediaType.APPLICATION_JSON.includes(contentType)) {
+            return true;
+        }
+        String subtype = contentType.getSubtype();
+        if (subtype != null && subtype.endsWith("+json")) {
+            return true;
+        }
+        return "text".equalsIgnoreCase(contentType.getType());
     }
 }
