@@ -5,7 +5,33 @@ spring:
       discovery:
         namespace: f923fb34-cb0a-4c06-8fca-ad61ea61a3f0
         group: DEFAULT_GROUP
-        ip: 192.168.150.1
+        ip: 192.168.127.1
+
+seata:
+  enabled: true
+  tx-service-group: tjxt
+  registry:
+    type: nacos
+    nacos:
+      server-addr: 192.168.127.101:8848
+      namespace: "f923fb34-cb0a-4c06-8fca-ad61ea61a3f0"
+      group: DEFAULT_GROUP
+      application: seata-server
+      cluster: default                # 关键：指定要连接的集群名称
+      username: nacos
+      password: nacos
+  config:
+    type: nacos
+    nacos:
+      server-addr: 192.168.127.101:8848
+      namespace: "f923fb34-cb0a-4c06-8fca-ad61ea61a3f0"
+      group: DEFAULT_GROUP
+  service:
+    vgroup-mapping:
+      tjxt: "default"                # 事务组映射到 default 集群
+  enable-auto-undo-log-creation: true
+  sql-dialect: mysql
+  enable-auto-data-source-proxy: true
 logging:
   level:
     com.tianji: debug
