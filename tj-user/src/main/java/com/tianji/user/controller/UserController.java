@@ -2,6 +2,7 @@ package com.tianji.user.controller;
 
 import com.tianji.api.dto.user.LoginFormDTO;
 import com.tianji.api.dto.user.UserDTO;
+import com.tianji.api.dto.user.WxLoginRegisterDTO;
 import com.tianji.common.domain.dto.LoginUserDTO;
 import com.tianji.common.domain.dto.PageDTO;
 import com.tianji.common.exceptions.BadRequestException;
@@ -118,6 +119,12 @@ public class UserController {
     public LoginUserDTO queryUserDetail(
             @Valid @RequestBody LoginFormDTO loginDTO, @PathVariable("isStaff") boolean isStaff) {
         return userService.queryUserDetail(loginDTO, isStaff);
+    }
+
+    @ApiIgnore
+    @PostMapping("/wx/register")
+    public LoginUserDTO registerWxUser(@Valid @RequestBody WxLoginRegisterDTO registerDTO) {
+        return userService.registerWxUser(registerDTO);
     }
 
     /**

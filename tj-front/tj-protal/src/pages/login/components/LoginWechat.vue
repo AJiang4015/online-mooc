@@ -1,156 +1,216 @@
 <template>
-    <div class="loginWechat">
-        <!-- <div class="title">微信扫码登录</div> -->
-        <div id="wxLogin" ref="wxLoginContainer" class="wx-login-container"></div>
-        <div v-if="loginStatus === 'pending'" class="status-message">
-            等待扫码...
-        </div>
-        <div v-if="loginStatus === 'scanned'" class="status-message">
-            已扫码，请在手机上确认登录
-        </div>
-        <div v-if="loginStatus === 'success'" class="status-message success">
-            登录成功，正在跳转...
-        </div>
-        <div v-if="loginStatus === 'error'" class="status-message error">
-            登录失败，请重试
-        </div>
+  <div class="loginWechat">
+    <div v-show="showQrCode" id="wxLogin" class="wx-login-container"></div>
+    <div v-if="loginStatus === 'pending'" class="status-message">
+      等待扫码...
     </div>
+    <div v-else-if="loginStatus === 'success'" class="status-message success">
+      登录成功，正在跳转...
+    </div>
+    <div v-else-if="loginStatus === 'expired'" class="status-message error">
+      二维码已过期，请刷新页面重新获取。
+    </div>
+    <div v-else-if="loginStatus === 'error'" class="status-message error">
+      {{ errorMessage || '微信登录失败，请重试' }}
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import { useRouter } from 'vue-router';
-import { saveWxUuid, checkWxLoginStatus } from '@/api/user'; // 引入新API
+import { useRoute, useRouter } from 'vue-router';
+import { useUserStore } from '@/store';
+import { checkWxLoginStatus, getUserInfo, saveWxUuid } from '@/api/user';
 
 const router = useRouter();
-const wxLoginContainer = ref(null);
+const route = useRoute();
+const store = useUserStore();
+
 const loginStatus = ref('pending');
+const errorMessage = ref('');
+const showQrCode = ref(true);
 let loginTimer = null;
 
-// 微信登录配置（需手动填写）
 const WX_CONFIG = {
-    appid: 'wx17655f8047b85150', // TODO: 填入你的微信开放平台APPID
-    redirectUri: 'http://tjxt-user-t.itheima.net/xuecheng/auth/wxLogin', // TODO: 填入你的回调URL
+  appid: 'wxed9954c01bb89b47',
+  redirectUri: 'http://localhost:8160/auth/wxLogin',
 };
 
-// 生成唯一标识
 const generateState = () => {
-    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 };
 
-// 加载微信JS SDK
 const loadWxLoginScript = () => {
-    return new Promise((resolve, reject) => {
-        if (window.WxLogin) {
-            resolve();
-            return;
-        }
-        const script = document.createElement('script');
-        script.src = 'https://res.wx.qq.com/connect/zh_CN/htmledition/js/wxLogin.js';
-        script.onload = resolve;
-        script.onerror = reject;
-        document.body.appendChild(script);
-    });
-};
-
-// 初始化微信登录组件
-const initWxLogin = async () => {
-    try {
-        await loadWxLoginScript();
-        await nextTick(); // 等待DOM渲染完成
-
-        // 生成唯一标识
-        const state = generateState();
-
-        // 将UUID存入后端Redis（使用新API）
-        await saveWxUuid(state);
-
-        // 创建微信登录对象
-        new window.WxLogin({
-            id: 'wxLogin',
-            appid: WX_CONFIG.appid,
-            scope: 'snsapi_login',
-            redirect_uri: encodeURIComponent(WX_CONFIG.redirectUri),
-            state,
-            style: 'black', // 黑色风格
-            href: '' // 自定义样式链接
-        });
-
-        // 开始轮询检查登录状态（使用新API）
-        startLoginCheck(state);
-    } catch (error) {
-        console.error('初始化微信登录失败', error);
-        ElMessage.error('初始化微信登录失败，请刷新页面');
-        loginStatus.value = 'error';
+  return new Promise((resolve, reject) => {
+    if (window.WxLogin) {
+      resolve();
+      return;
     }
+    const script = document.createElement('script');
+    script.src = 'https://res.wx.qq.com/connect/zh_CN/htmledition/js/wxLogin.js';
+    script.onload = resolve;
+    script.onerror = reject;
+    document.body.appendChild(script);
+  });
 };
 
-// 开始轮询检查登录状态
-const startLoginCheck = (state) => {
-    loginTimer = setInterval(async () => {
-        try {
-            // 调用新API检查登录状态
-            const res = await checkWxLoginStatus(state);
-            if (res.code === 200) {
-                const status = res.data.status;
-                if (status === 'pending') {
-                    loginStatus.value = 'pending';
-                } else if (status === 'scanned') {
-                    loginStatus.value = 'scanned';
-                } else if (status === 'success') {
-                    clearInterval(loginTimer);
-                    loginStatus.value = 'success';
-
-                    // 登录成功，获取token
-                    const token = res.data.token;
-                    // 存储token并跳转到首页
-                    localStorage.setItem('token', token);
-
-                    setTimeout(() => {
-                        router.push('/');
-                    }, 1000);
-                }
-            }
-        } catch (error) {
-            console.error('检查登录状态失败', error);
-        }
-    }, 3000); // 每3秒检查一次
+const clearLoginTimer = () => {
+  if (loginTimer) {
+    clearInterval(loginTimer);
+    loginTimer = null;
+  }
 };
 
-onMounted(() => {
+const handleLoginSuccess = async (token) => {
+  if (!token) {
+    loginStatus.value = 'error';
+    errorMessage.value = '微信登录成功，但未获取到登录凭证';
+    return;
+  }
+  await store.setToken(token);
+  const userInfo = await getUserInfo();
+  if (userInfo.code !== 200) {
+    loginStatus.value = 'error';
+    errorMessage.value = userInfo.msg || '获取用户信息失败';
+    return;
+  }
+  await store.setUserInfo(userInfo.data);
+  loginStatus.value = 'success';
+  setTimeout(() => {
+    router.push('/main/index');
+  }, 800);
+};
+
+const pollLoginStatus = async (state) => {
+  try {
+    const res = await checkWxLoginStatus(state);
+    if (res.code !== 200) {
+      return;
+    }
+    const status = res.data.status;
+    if (status === 'pending') {
+      loginStatus.value = 'pending';
+      return;
+    }
+    if (status === 'success') {
+      clearLoginTimer();
+      await handleLoginSuccess(res.data.token);
+      return;
+    }
+    if (status === 'expired') {
+      clearLoginTimer();
+      loginStatus.value = 'expired';
+      return;
+    }
+    if (status === 'error') {
+      clearLoginTimer();
+      loginStatus.value = 'error';
+      errorMessage.value = res.data.msg || '微信登录失败，请重试';
+    }
+  } catch (error) {
+    console.error('检查微信登录状态失败', error);
+  }
+};
+
+const startLoginCheck = async (state) => {
+  clearLoginTimer();
+  await pollLoginStatus(state);
+  if (loginStatus.value === 'success' || loginStatus.value === 'error' || loginStatus.value === 'expired') {
+    return;
+  }
+  loginTimer = setInterval(() => {
+    pollLoginStatus(state);
+  }, 2000);
+};
+
+const initWxLogin = async () => {
+  try {
+    await loadWxLoginScript();
+    await nextTick();
+
+    const state = generateState();
+    await saveWxUuid(state);
+
+    showQrCode.value = true;
+    new window.WxLogin({
+      id: 'wxLogin',
+      appid: WX_CONFIG.appid,
+      scope: 'snsapi_login',
+      redirect_uri: encodeURIComponent(WX_CONFIG.redirectUri),
+      state,
+      style: 'black',
+      href: '',
+    });
+
+    await startLoginCheck(state);
+  } catch (error) {
+    console.error('初始化微信登录失败', error);
+    loginStatus.value = 'error';
+    errorMessage.value = '初始化微信登录失败，请刷新页面重试';
+    ElMessage.error('初始化微信登录失败，请刷新页面重试');
+  }
+};
+
+const resumeWxLogin = async () => {
+  const wxState = route.query.wxState;
+  const wxError = route.query.wxError;
+  if (typeof wxError === 'string' && wxError) {
+    loginStatus.value = 'error';
+    errorMessage.value = decodeURIComponent(wxError);
+  }
+  if (typeof wxState === 'string' && wxState) {
+    showQrCode.value = false;
+    loginStatus.value = 'pending';
+    await startLoginCheck(wxState);
+    return true;
+  }
+  return false;
+};
+
+watch(
+  () => route.query.wxState,
+  async (value) => {
+    if (typeof value === 'string' && value) {
+      await resumeWxLogin();
+    }
+  }
+);
+
+onMounted(async () => {
+  const resumed = await resumeWxLogin();
+  if (!resumed) {
     initWxLogin();
+  }
 });
 
 onUnmounted(() => {
-    if (loginTimer) {
-        clearInterval(loginTimer);
-    }
+  clearLoginTimer();
 });
 </script>
 
 <style scoped>
 .loginWechat {
-    margin-top: 40px;
-    text-align: center;
+  margin-top: 40px;
+  text-align: center;
 }
 
 .wx-login-container {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
 }
 
 .status-message {
-    margin-top: 10px;
-    font-size: 14px;
+  margin-top: 10px;
+  font-size: 14px;
 }
 
 .success {
-    color: #67c23a;
+  color: #67c23a;
 }
 
 .error {
-    color: #f56c6c;
+  color: #f56c6c;
 }
 </style>

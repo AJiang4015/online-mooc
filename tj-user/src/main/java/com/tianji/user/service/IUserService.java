@@ -3,6 +3,7 @@ package com.tianji.user.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.tianji.api.dto.user.LoginFormDTO;
 import com.tianji.api.dto.user.UserDTO;
+import com.tianji.api.dto.user.WxLoginRegisterDTO;
 import com.tianji.common.domain.dto.LoginUserDTO;
 import com.tianji.common.domain.dto.PageDTO;
 import com.tianji.user.domain.dto.StudentFormDTO;
@@ -25,6 +26,8 @@ import java.util.List;
  */
 public interface IUserService extends IService<User> {
     LoginUserDTO queryUserDetail(LoginFormDTO loginDTO, boolean isStaff);
+
+    LoginUserDTO registerWxUser(WxLoginRegisterDTO registerDTO);
 
     void resetPassword(Long userId);
 

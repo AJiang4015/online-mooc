@@ -9,6 +9,7 @@ import com.tianji.api.client.auth.AuthClient;
 import com.tianji.api.dto.auth.RoleDTO;
 import com.tianji.api.dto.user.LoginFormDTO;
 import com.tianji.api.dto.user.UserDTO;
+import com.tianji.api.dto.user.WxLoginRegisterDTO;
 import com.tianji.common.domain.dto.LoginUserDTO;
 import com.tianji.common.domain.dto.PageDTO;
 import com.tianji.common.domain.query.PageQuery;
@@ -33,6 +34,7 @@ import com.tianji.user.mapper.UserMapper;
 import com.tianji.user.service.ICodeService;
 import com.tianji.user.service.IUserDetailService;
 import com.tianji.user.service.IUserService;
+import com.tianji.user.utils.NameUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -42,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static com.tianji.user.constants.UserConstants.*;
@@ -98,6 +101,36 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         userDTO.setUserId(user.getId());
         userDTO.setRoleId(handleRoleId(user));
         return userDTO;
+    }
+
+    @Override
+    @Transactional
+    public LoginUserDTO registerWxUser(WxLoginRegisterDTO registerDTO) {
+        String unionid = registerDTO.getUnionid();
+        User existed = lambdaQuery().eq(User::getWxUnionid, unionid).one();
+        if (existed != null) {
+            return buildLoginUser(existed);
+        }
+
+        User user = new User();
+        user.setUsername(generateWxUsername());
+        user.setCellPhone(generateWxPlaceholderPhone());
+        user.setPassword(passwordEncoder.encode(DEFAULT_PASSWORD));
+        user.setType(UserType.STUDENT);
+        user.setStatus(UserStatus.NORMAL);
+        user.setWxUnionid(unionid);
+        save(user);
+
+        UserDetail detail = new UserDetail();
+        detail.setId(user.getId());
+        detail.setType(UserType.STUDENT);
+        detail.setRoleId(STUDENT_ROLE_ID);
+        detail.setName(StringUtils.isNotBlank(registerDTO.getNickname()) ? registerDTO.getNickname() : NameUtils.getUserName());
+        detail.setIcon(registerDTO.getIcon());
+        detail.setPhoto(registerDTO.getIcon());
+        detailService.save(detail);
+
+        return buildLoginUser(user);
     }
 
     private User loginByWxLogin(String unionid) {
@@ -360,6 +393,31 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
                 break;
         }
         return roleId;
+    }
+
+    private LoginUserDTO buildLoginUser(User user) {
+        LoginUserDTO userDTO = new LoginUserDTO();
+        userDTO.setUserId(user.getId());
+        userDTO.setRoleId(handleRoleId(user));
+        return userDTO;
+    }
+
+    private String generateWxUsername() {
+        return "wx_" + System.currentTimeMillis() + ThreadLocalRandom.current().nextInt(1000, 10000);
+    }
+
+    private String generateWxPlaceholderPhone() {
+        for (int i = 0; i < 10; i++) {
+            String candidate = "wx" + ThreadLocalRandom.current().nextInt(100_000_000, 1_000_000_000);
+            boolean exists = lambdaQuery()
+                    .eq(User::getCellPhone, candidate)
+                    .eq(User::getType, UserType.STUDENT)
+                    .count() > 0;
+            if (!exists) {
+                return candidate;
+            }
+        }
+        throw new BizIllegalException("生成微信占位手机号失败，请稍后重试");
     }
 
     public User loginByVerifyCode(String phone, String code) {

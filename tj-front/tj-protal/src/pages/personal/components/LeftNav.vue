@@ -39,10 +39,7 @@ watchEffect(() => {
       !item.meta.hidden &&
       item.name !== "myMessage" &&
       item.path !== "myMessage" &&
-      item.meta.active !== "myMessage" &&
-      item.name !== "mySet" &&
-      item.path !== "mySet" &&
-      item.meta.active !== "mySet"
+      item.meta.active !== "myMessage"
   );
   currentPath.value = route.path.split("/").at(-1);
 });

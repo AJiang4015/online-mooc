@@ -1,8 +1,8 @@
 server:
-#  port: 9999  #端口
-  port: 8094  #有时候端口被占用
+#  port: 9999
+  port: 8094
   tomcat:
-    uri-encoding: UTF-8   #服务编码
+    uri-encoding: UTF-8
 spring:
   profiles:
     active: dev
@@ -12,13 +12,12 @@ spring:
     nacos:
       config:
         file-extension: yaml
-        # 未指定 namespace，默认使用 public 命名空间
-        shared-configs: # 共享配置
-          - dataId: shared-spring.yaml # 共享spring配置
-          - dataId: shared-redis.yaml # 共享redis配置
-          - dataId: shared-mybatis.yaml # 共享mybatis配置
-          - dataId: shared-logs.yaml # 共享日志配置
-          - dataId: shared-feign.yaml # 共享feign配置
+        shared-configs:
+          - dataId: shared-spring.yaml
+          - dataId: shared-redis.yaml
+          - dataId: shared-mybatis.yaml
+          - dataId: shared-logs.yaml
+          - dataId: shared-feign.yaml
           - dataId: shared-qdrant.yaml
 tj:
   swagger:
@@ -27,7 +26,7 @@ tj:
     package-path: com.tianji.chat.controller
     title: 智慧MOOC - AI智能对话中心接口文档
     description: 该服务提供AI聊天、AI知识库分析等功能
-    contact-name: 研究院
+    contact-name: 研发院
     contact-url: http://www.itcast.cn/
     contact-email: 1418875140@qq.com
     version: v1.0
@@ -40,14 +39,16 @@ tj:
   mq:
     listener:
       retry:
-        stateless: false # mq开启无状态
+        stateless: false
 langchain4j:
-  base-url: http://localhost:11434/v1  #本地ollama
-  api-key: EMPTY
-  max-tokens: 1000
-  timeout-seconds: 15
-  model-name: qwen3:0.6b
-  embedding-model-name: bge-m3:latest
-  max-retries: 3
-  chat-model-temperature: 0.4
-  streaming-chat-model-temperature: 0.7
+  # 默认仍指向本地 Ollama；切到百炼或其他 OpenAI 兼容平台时，只需要覆盖下面这些环境变量
+  # TJ_AI_BASE_URL、TJ_AI_API_KEY、TJ_AI_MODEL_NAME、TJ_AI_EMBEDDING_MODEL_NAME
+  base-url: ${TJ_AI_BASE_URL:http://localhost:11434/v1}
+  api-key: ${TJ_AI_API_KEY:EMPTY}
+  max-tokens: ${TJ_AI_MAX_TOKENS:1000}
+  timeout-seconds: ${TJ_AI_TIMEOUT_SECONDS:15}
+  model-name: ${TJ_AI_MODEL_NAME:qwen3:0.6b}
+  embedding-model-name: ${TJ_AI_EMBEDDING_MODEL_NAME:bge-m3:latest}
+  max-retries: ${TJ_AI_MAX_RETRIES:3}
+  chat-model-temperature: ${TJ_AI_CHAT_TEMPERATURE:0.4}
+  streaming-chat-model-temperature: ${TJ_AI_STREAMING_TEMPERATURE:0.7}

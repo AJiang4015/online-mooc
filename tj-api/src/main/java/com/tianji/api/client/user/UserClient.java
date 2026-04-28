@@ -5,6 +5,7 @@ import com.tianji.api.client.user.fallback.UserClientFallback;
 import com.tianji.api.dto.user.LoginFormDTO;
 import com.tianji.api.dto.user.StudentFormDTO;
 import com.tianji.api.dto.user.UserDTO;
+import com.tianji.api.dto.user.WxLoginRegisterDTO;
 import com.tianji.common.domain.dto.LoginUserDTO;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
@@ -30,6 +31,9 @@ public interface UserClient {
      */
     @PostMapping("/users/detail/{isStaff}")
     LoginUserDTO queryUserDetail(@RequestBody LoginFormDTO loginDTO, @PathVariable("isStaff") boolean isStaff);
+
+    @PostMapping("/users/wx/register")
+    LoginUserDTO registerWxUser(@RequestBody WxLoginRegisterDTO registerDTO);
 
     /**
      * 查询用户类型

@@ -42,6 +42,7 @@ tj:
         - /students/register
         - /students/password
         - /users/detail/{isStaff}
+        - /users/wx/register
         - /users/list
         - GET:/users/{id}
         - /users/{id}/type

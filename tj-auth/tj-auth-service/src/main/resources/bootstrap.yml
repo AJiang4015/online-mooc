@@ -1,5 +1,5 @@
 server:
-  port: 8081  #端口
+  port: 8160  #端口
   tomcat:
     uri-encoding: UTF-8   #服务编码
 spring:
@@ -50,6 +50,7 @@ tj:
     weixin:
       appid: wxed9954c01bb89b47
       secret: a7482517235173ddb4083788de60b90e
+      login-page: http://localhost:18082/#/login
       #appid: wx17655f8047b85150
       #secret: 68918d65287802a19b1905cbda7eaa93
       expire: 120

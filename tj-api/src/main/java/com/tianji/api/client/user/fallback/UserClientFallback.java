@@ -4,6 +4,7 @@ import com.tianji.api.client.user.UserClient;
 import com.tianji.api.dto.user.LoginFormDTO;
 import com.tianji.api.dto.user.StudentFormDTO;
 import com.tianji.api.dto.user.UserDTO;
+import com.tianji.api.dto.user.WxLoginRegisterDTO;
 import com.tianji.common.domain.dto.LoginUserDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
@@ -24,6 +25,11 @@ public class UserClientFallback implements FallbackFactory<UserClient> {
 
             @Override
             public LoginUserDTO queryUserDetail(LoginFormDTO loginDTO, boolean isStaff) {
+                return null;
+            }
+
+            @Override
+            public LoginUserDTO registerWxUser(WxLoginRegisterDTO registerDTO) {
                 return null;
             }
 

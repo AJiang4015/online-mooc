@@ -12,4 +12,8 @@ tj:
       - /code
       - /students/register
       - /search
+      - /as/accounts/wx/saveUuid
+      - /as/accounts/wx/check
+      - /as/accounts/wxLogin
+      - /auth/wxLogin
       - /notify/**
