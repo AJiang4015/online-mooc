@@ -23,23 +23,17 @@
           <span>{{scope.row.score || 0}}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" width="100">
-        <template #default="scope">
-          <div class="font-bt1" @click="() => $router.push({path:'myExamdetails', query:scope.row})">查看</div>
-        </template>
-      </el-table-column>
     </el-table>
   </div>
 </template>
 <script setup>
-
 // 介绍父组件传来的标题
 defineProps({
   data:{
     type: Array,
     default: []
   }
-})  
+})
 </script>
 <style lang="scss" scoped>
 .classCards{

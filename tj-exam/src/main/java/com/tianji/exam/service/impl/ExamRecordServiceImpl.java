@@ -282,7 +282,7 @@ public class ExamRecordServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRec
             // 获取问题
             QuestionDTO question = qMap.get(d.getQuestionId());
             // 校验是否正确
-            if (question != null && StringUtils.equals(question.getAnswer(), d.getAnswer())) {
+            if (question != null && isAnswerCorrect(question, d.getAnswer())) {
                 d.setCorrect(true);
                 d.setScore(question.getScore());
                 score += question.getScore();
@@ -331,6 +331,24 @@ public class ExamRecordServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRec
             list.add(v);
         }
         return list;
+    }
+
+    private boolean isAnswerCorrect(QuestionDTO question, String answer) {
+        if (StringUtils.isBlank(answer) || StringUtils.isBlank(question.getAnswer())) {
+            return false;
+        }
+        if ("4".equals(question.getType())) {
+            return normalizeJudgeAnswer(question.getAnswer()).equals(normalizeJudgeAnswer(answer));
+        }
+        return StringUtils.equals(question.getAnswer(), answer);
+    }
+
+    private String normalizeJudgeAnswer(String answer) {
+        String trimmed = answer.trim();
+        if ("1".equals(trimmed) || "true".equalsIgnoreCase(trimmed)) {
+            return "1";
+        }
+        return "0";
     }
 
 

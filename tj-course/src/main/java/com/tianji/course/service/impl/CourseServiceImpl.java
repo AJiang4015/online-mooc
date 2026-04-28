@@ -298,7 +298,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         vo.setLatestSectionId(latestSectionId);
         // 6.3.处理记录为一个map
         Map<Long, LearningRecordDTO> rMap = records.stream()
-                .collect(Collectors.toMap(LearningRecordDTO::getSectionId, r -> r));
+                .collect(Collectors.toMap(
+                        LearningRecordDTO::getSectionId,
+                        r -> r,
+                        this::mergeLearningRecord
+                ));
         // 6.4.填充学习进度到章节中
         for (ChapterVO chapter : vo.getChapters()) {
             for (SectionVO section : chapter.getSections()) {
@@ -309,6 +313,19 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             }
         }
         return vo;
+    }
+
+    private LearningRecordDTO mergeLearningRecord(LearningRecordDTO r1, LearningRecordDTO r2) {
+        boolean finished1 = Boolean.TRUE.equals(r1.getFinished());
+        boolean finished2 = Boolean.TRUE.equals(r2.getFinished());
+        if (finished1 != finished2) {
+            return finished1 ? r1 : r2;
+        }
+        return safeMoment(r1) >= safeMoment(r2) ? r1 : r2;
+    }
+
+    private int safeMoment(LearningRecordDTO record) {
+        return record.getMoment() == null ? 0 : record.getMoment();
     }
 
     @Override

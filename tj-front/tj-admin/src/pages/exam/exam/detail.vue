@@ -243,7 +243,7 @@ const answerChange = (type, val) => {
             break
         }
         case 4: {
-            data = val ? '正确' : '错误'
+            data = String(val) === '1' || String(val).toLowerCase() === 'true' ? '正确' : '错误'
             break
         }
         case 5: {

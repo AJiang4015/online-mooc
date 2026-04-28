@@ -30,7 +30,7 @@
           </div>
           <div  class="td fx-1">
             <div class="marg-bt-10 ft-wt-600 ft-cl-1">总 分 数</div>
-            <div>{{$route.query.score || 0}} / {{total}}</div>
+            <div>{{score}} / {{total}}</div>
           </div>
         </div>
       </div>
@@ -70,7 +70,7 @@
 <script setup>
 
 /** 数据导入 **/
-import { onMounted, ref, reactive } from "vue";
+import { ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { getExamDetails } from "@/api/class.js";
 import { upperAlpha, timeFormat } from "@/utils/tool.js"
@@ -85,24 +85,30 @@ const stroe = useUserStore()
 const route = useRoute();
 
 // mounted生命周期
-onMounted(async () => {
-  // 查询我的考试记录
-  getExamDetailsData()
-});
 
 /** 方法定义 **/
 
 // 查询我的考试记录
 const total = ref(0)
+const score = ref(0)
 // 查询我的详情
-const myExamDetails = ref()
+const myExamDetails = ref([])
 const getExamDetailsData = async () => {
+  if (!route.query.id) {
+    myExamDetails.value = []
+    total.value = 0
+    score.value = 0
+    return
+  }
   await getExamDetails(route.query.id)
     .then((res) => {
       if (res.code == 200 && res.data != null){
         myExamDetails.value = res.data
+        total.value = 0
+        score.value = 0
         res.data.forEach(el => {
-          total.value += el.question.score
+          total.value += el.question?.score || 0
+          score.value += el.score || 0
         });
       }
     })
@@ -113,6 +119,13 @@ const getExamDetailsData = async () => {
       });
     });
 }
+watch(
+  () => route.query.id,
+  () => {
+    getExamDetailsData()
+  },
+  { immediate: true }
+)
 // 问题类型，1：单选题，2：多选题，3：不定向选择题，4：判断题，5：主观题
 const answerChange = (type, val) => {
   let data = ''
@@ -121,13 +134,14 @@ const answerChange = (type, val) => {
       data = isNaN(Number(val)) ? val : upperAlpha(Number(val))
       break
     }
-    case 2 || 3: {
+    case 2:
+    case 3: {
       const arr = typeof val == 'string' ? val.split(',') : val
       data = arr.map(n => isNaN(Number(n)) ? n : upperAlpha(Number(n))).join(',')
       break
     }
     case 4 : {
-      data = val  ? '正确' : '错误'
+      data = String(val) === '1' || String(val).toLowerCase() === 'true' ? '正确' : '错误'
       break
     }
     case 5 : {

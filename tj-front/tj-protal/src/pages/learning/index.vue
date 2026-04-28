@@ -215,10 +215,37 @@ const classFinished = () => {
 // 组件卸载的时候触发 - 页面跳转的时候触发
 onUnmounted(() => {
   window.clearInterval(timer)
+  submitVideoLearningRecord()
 })
 const currentPlayTime = ref(0)
 // 初始化视频播放器并播放视频 视频ID、播放器签名
 const player = ref(null)
+const shouldTrackLearningRecord = () => {
+  return pageType.value === 1 && !!currentPlayData.lessonId && !!currentPlayData.sectionId
+}
+const submitLearningRecord = (params) => {
+  return addPlayLog({
+    ...params,
+    commitTime: now()
+  }).catch(err => console.log(err))
+}
+const submitVideoLearningRecord = () => {
+  if (!shouldTrackLearningRecord()) {
+    return Promise.resolve()
+  }
+  const {lessonId, sectionId, moment, duration} = currentPlayData
+  return submitLearningRecord({lessonId, sectionId, moment, duration, sectionType: 1})
+}
+const submitExamLearningRecord = (item) => {
+  if (!item?.lessonId || !item?.sectionId) {
+    return Promise.resolve()
+  }
+  return submitLearningRecord({
+    lessonId: item.lessonId,
+    sectionId: item.sectionId,
+    sectionType: 2
+  })
+}
 const initPlay = (playAppId, fileID, psign) => {
   player.value = new TCPlayer(videoRef.value, {
     appID: playAppId,
@@ -237,6 +264,7 @@ const initPlay = (playAppId, fileID, psign) => {
     // 每次视频暂停的时候 停止发送播放记录请求
     window.clearInterval(timer)
     playing = false;
+    submitVideoLearningRecord()
   });
   player.value.on('play', function () {
     if(playing) return;
@@ -253,7 +281,8 @@ const initPlay = (playAppId, fileID, psign) => {
   player.value.on('ended',  () =>{
     // 播放结束时 停止计算器 并提交最后一次播放状态
     window.clearInterval(timer)
-    //timer = 0;
+    currentPlayData.moment = Math.max(Number(currentPlayData.moment || 0), Number(currentPlayData.duration || 0))
+    submitVideoLearningRecord()
     // 续播下一个
     finished.value = true;
   });
@@ -277,14 +306,12 @@ const now = () => {
 
 // 播放新的小节的时候提交相关记录
 const addPlayLogHandle = () => {
-  let {lessonId, sectionId, moment, duration} = currentPlayData;
-  addPlayLog({lessonId, sectionId, moment, duration, sectionType: 1, commitTime: now()})
+  submitVideoLearningRecord()
       .then((res) => {
-        if (res.code === 200) {
+        if (res?.code === 200) {
           console.log("记录成功:", res)
         }
       })
-      .catch(err =>console.log(err));
 };
 
 // 通过课程的小节id获取视频的fileId
@@ -319,6 +346,7 @@ const playHadle = async (val) => {
   currentPlayData.sectionName = item.name
   // 练习返回
   if(tp == '9'){
+    await submitExamLearningRecord(item)
     pageType.value = 1;
     return 
   }

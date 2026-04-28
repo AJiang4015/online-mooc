@@ -5,7 +5,7 @@
       <div class="previewTit">答题卡</div>
       <div class="previewList">
         <span v-for="(item, index) in params"
-          :class="{act: item && item.answers != undefined && String(item.answers) != ''}" :key="index">{{index +
+          :class="{act: item && hasAnswer(item.answers)}" :key="index">{{index +
           1}}</span>
       </div>
       <div class="previewSub" @click="submit"><span class="bt">提交试卷</span></div>
@@ -38,8 +38,8 @@
         </div>
         <div v-if="item.type == 4">
           <el-radio-group v-model="item.answers" class="ml-4">
-            <el-radio :label="true" size="large">A. 正确</el-radio>
-            <el-radio :label="false" size="large">B. 错误</el-radio>
+            <el-radio :label="1" size="large">A. 正确</el-radio>
+            <el-radio :label="0" size="large">B. 错误</el-radio>
           </el-radio-group>
         </div>
         <div v-if="item.type == 5">
@@ -158,9 +158,43 @@ const getSubjectList = async () => {
 const isSubmit = ref(false)
 
 // 确认提交试卷
+const hasAnswer = (answer) => {
+  if (Array.isArray(answer)) {
+    return answer.some(item => item !== null && item !== undefined && String(item).trim() !== '')
+  }
+  if (typeof answer === 'string') {
+    return answer.trim() !== ''
+  }
+  return answer !== null && answer !== undefined
+}
+
+const normalizeAnswer = (item) => {
+  const { answers, type } = item
+  if (!hasAnswer(answers)) {
+    return ''
+  }
+  if (Array.isArray(answers)) {
+    return answers
+      .filter(answer => answer !== null && answer !== undefined && String(answer).trim() !== '')
+      .map(answer => Number(answer))
+      .filter(answer => !Number.isNaN(answer))
+      .sort((a, b) => a - b)
+      .join(',')
+  }
+  if (type === 4) {
+    if (answers === true || answers === 'true' || answers === 1 || answers === '1') {
+      return '1'
+    }
+    if (answers === false || answers === 'false' || answers === 0 || answers === '0') {
+      return '0'
+    }
+  }
+  return typeof answers === 'string' ? answers.trim() : String(answers)
+}
+
 const params = ref(subjectList)
 const submit = () => {
-  const Effective = params.value.filter(n => n.answers != "" && n.answers != undefined)
+  const Effective = params.value.filter(n => hasAnswer(n.answers))
   if (Effective.length < subjectList.value.length) {
     ElMessageBox.confirm(
       `还有未提交答案，是否要提交答卷。`,
@@ -184,15 +218,13 @@ const submit = () => {
 const postSubjectHandle = async () => {
   const param = params.value.map(el => {
     // 确保 answers 是数组且不为空
-    const answersArray = Array.isArray(el.answers) ? el.answers : [];
+    const answer = normalizeAnswer(el);
     
     // 过滤掉无效值并转换为数字
-    const validAnswers = answersArray
-      .filter(answer => answer !== null && answer !== undefined && answer !== '')
-      .map(answer => parseInt(answer));
+    const validAnswers = answer;
     
     // 排序并转换为字符串
-    const sortedAnswers = validAnswers.sort((a, b) => a - b).join(',');
+    const sortedAnswers = validAnswers;
     
     return { 
       questionId: el.id, 
@@ -234,7 +266,7 @@ function leaveConfirm() {
   if (isSubmit.value) {
     return false;
   }
-  const Effective = params.value.filter(n => n.answers != "" && n.answers != undefined)
+  const Effective = params.value.filter(n => hasAnswer(n.answers))
   if (Effective.length > 0) {
     ElMessageBox.confirm(
       `还有未提交答案，是否要提交答卷。`,
