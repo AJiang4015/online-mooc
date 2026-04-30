@@ -7,4 +7,10 @@ public interface AiConstants {
      */
     String QDRANT_COLLECTION = "ai-chat";
 
+    double KNOWLEDGE_MATCH_THRESHOLD = 0.75D;
+
+    int KNOWLEDGE_SEARCH_LIMIT = 5;
+
+    int KNOWLEDGE_REFERENCE_LIMIT = 3;
+
 }

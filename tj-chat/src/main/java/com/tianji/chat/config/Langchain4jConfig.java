@@ -35,6 +35,9 @@ public class Langchain4jConfig {
     @Value("${langchain4j.embedding-model-name:${langchain4j.model-name}}")
     private String embeddingModelName;
 
+    @Value("${langchain4j.embedding-dimensions:0}")
+    private int embeddingDimensions;
+
     @Value("${langchain4j.max-retries}")
     private int maxRetries;
 
@@ -75,11 +78,15 @@ public class Langchain4jConfig {
 
     @Bean
     public EmbeddingModel embeddingModel() {
-        return OpenAiEmbeddingModel.builder()
+        OpenAiEmbeddingModel.OpenAiEmbeddingModelBuilder builder = OpenAiEmbeddingModel.builder()
                 .baseUrl(baseUrl)
                 .apiKey(apiKey)
                 .timeout(Duration.ofSeconds(timeoutSeconds))
                 .modelName(embeddingModelName)
-                .build();
+                .maxRetries(maxRetries);
+        if (embeddingDimensions > 0) {
+            builder.dimensions(embeddingDimensions);
+        }
+        return builder.build();
     }
 }

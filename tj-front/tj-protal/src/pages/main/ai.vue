@@ -12,9 +12,9 @@
                 :userSessionList="userSessionList"
                 :selectedSessionId="selectedSessionId"
                 @selectSession="selectSession"
-                @createSession="()=>{fetchUserSessionList()}"
+                @createSession="handleCreateSession"
                 @updateSession="fetchUserSessionList"
-                @deleteSession="()=>{fetchUserSessionList();selectSession(null)}"
+                @deleteSession="handleDeleteSession"
             />
             
             <!-- 聊天区域 -->
@@ -102,6 +102,7 @@ const END_FLAG = '[END]';
 const userSessionList = ref([]);
 // 当前选中的会话 ID
 const selectedSessionId = ref(null);
+const SESSION_STORAGE_KEY = 'ai-chat-selected-session-id';
 // 当前页码
 const currentPage = ref(1);
 // 每页数量
@@ -137,7 +138,9 @@ import 'katex/dist/katex.min.css';
 import markdownItKatex from 'markdown-it-katex';
 
 // 创建一个 MarkdownIt 实例并配置 katex 插件
-const md = new MarkdownIt().use(markdownItKatex, {
+const md = new MarkdownIt({
+    breaks: true
+}).use(markdownItKatex, {
     throwOnError: false, // 防止错误抛出
     errorColor: '#cc0000', // 错误颜色
 });
@@ -146,9 +149,22 @@ const md = new MarkdownIt().use(markdownItKatex, {
 const fetchUserSessionList = async () => {
     try {
         const sessions = await getUserSessionList();
-        userSessionList.value = sessions.data;
-        if (sessions.length > 0 && !selectedSessionId.value) {
-            selectSession(sessions[0].sessionId);
+        const sessionList = sessions.data || [];
+        userSessionList.value = sessionList;
+        if (!sessionList.length) {
+            clearCurrentSession();
+            return;
+        }
+
+        const rememberedSessionId = sessionStorage.getItem(SESSION_STORAGE_KEY);
+        const currentExists = sessionList.some(item => item.sessionId === selectedSessionId.value);
+        const rememberedExists = sessionList.some(item => item.sessionId === rememberedSessionId);
+        const targetSessionId = currentExists
+            ? selectedSessionId.value
+            : (rememberedExists ? rememberedSessionId : sessionList[0].sessionId);
+
+        if (!selectedSessionId.value || targetSessionId !== selectedSessionId.value || !chatHistory.value.length) {
+            await selectSession(targetSessionId);
         }
     } catch (error) {
         console.error('获取用户会话列表失败:', error);
@@ -158,7 +174,13 @@ const fetchUserSessionList = async () => {
 
 // 选择会话
 const selectSession = async (sessionId) => {
+    if (!sessionId) {
+        clearCurrentSession();
+        return;
+    }
+
     selectedSessionId.value = sessionId;
+    sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
     currentPage.value = 1;
     chatHistory.value = [];
     try {
@@ -196,6 +218,24 @@ const selectSession = async (sessionId) => {
         console.error('加载会话历史记录失败:', error);
         ElMessage.error('加载会话历史记录失败: ' + (error.message || '未知错误'));
     }
+};
+
+const clearCurrentSession = () => {
+    selectedSessionId.value = null;
+    chatHistory.value = [];
+    currentPage.value = 1;
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+};
+
+const handleCreateSession = async (sessionId) => {
+    await fetchUserSessionList();
+    if (sessionId) {
+        await selectSession(sessionId);
+    }
+};
+
+const handleDeleteSession = async () => {
+    await fetchUserSessionList();
 };
 // 切换模式下拉菜单显示状态
 const toggleModeDropdown = () => {
@@ -307,9 +347,10 @@ const sendMessage = async () => {
                 }
 
                 if (msg.data) {
-                    if (msg.data === '<think>') {
+                    const chunk = msg.data === '__TJ_CHAT_NL__' ? '\n' : msg.data;
+                    if (chunk === '<think>') {
                         inThinkingTag = true;
-                    } else if (msg.data === '</think>') {
+                    } else if (chunk === '</think>') {
                         inThinkingTag = false;
                         if (thinkingContent.trim() === '') {
                             thinkingContent = '';
@@ -317,9 +358,10 @@ const sendMessage = async () => {
                         assistantMessage.thinkingContent = thinkingContent;
                         thinkingContent = '';
                     } else if (inThinkingTag) {
-                        thinkingContent += msg.data;
+                        thinkingContent += chunk;
                     } else {
-                        content += msg.data;
+                        content += chunk;
+                        assistantMessage.content = content;
                         const processed = processContent(content);
                         assistantMessage.processedContent = processed.content;
                         assistantMessage.showMarkdown = processed.showMarkdown;
@@ -587,6 +629,35 @@ onMounted(async () => {
             border-radius: 18px 18px 18px 0;
             max-width: 100%;
             word-break: break-word;
+
+            :deep(p) {
+                margin: 0;
+                white-space: pre-wrap;
+            }
+
+            :deep(p + p) {
+                margin-top: 8px;
+            }
+
+            :deep(ul),
+            :deep(ol) {
+                margin: 8px 0;
+                padding-left: 20px;
+                list-style-position: outside;
+            }
+
+            :deep(ul) {
+                list-style: disc;
+            }
+
+            :deep(ol) {
+                list-style: decimal;
+            }
+
+            :deep(li) {
+                margin: 4px 0;
+                white-space: pre-wrap;
+            }
         }
 
         // 添加复制按钮样式

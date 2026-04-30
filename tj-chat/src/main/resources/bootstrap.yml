@@ -41,14 +41,15 @@ tj:
       retry:
         stateless: false
 langchain4j:
-  # 默认仍指向本地 Ollama；切到百炼或其他 OpenAI 兼容平台时，只需要覆盖下面这些环境变量
-  # TJ_AI_BASE_URL、TJ_AI_API_KEY、TJ_AI_MODEL_NAME、TJ_AI_EMBEDDING_MODEL_NAME
-  base-url: ${TJ_AI_BASE_URL:http://localhost:11434/v1}
-  api-key: ${TJ_AI_API_KEY:EMPTY}
-  max-tokens: ${TJ_AI_MAX_TOKENS:1000}
-  timeout-seconds: ${TJ_AI_TIMEOUT_SECONDS:15}
-  model-name: ${TJ_AI_MODEL_NAME:qwen3:0.6b}
-  embedding-model-name: ${TJ_AI_EMBEDDING_MODEL_NAME:bge-m3:latest}
-  max-retries: ${TJ_AI_MAX_RETRIES:3}
-  chat-model-temperature: ${TJ_AI_CHAT_TEMPERATURE:0.4}
-  streaming-chat-model-temperature: ${TJ_AI_STREAMING_TEMPERATURE:0.7}
+  base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  api-key: sk-b11d4aff59b74716a4ebebabb8a3906e
+  model-name: qwen-plus
+  embedding-model-name: text-embedding-v4
+  embedding-dimensions: 1024
+  max-tokens: 1000
+  timeout-seconds: 15
+  max-retries: 3
+  chat-model-temperature: 0.4
+  streaming-chat-model-temperature: 0.7
+qdrant:
+  vector-size: 1024
